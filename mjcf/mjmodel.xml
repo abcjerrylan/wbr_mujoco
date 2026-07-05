@@ -5,26 +5,18 @@
     <mesh name="base_link" content_type="model/stl" file="base_link.STL"/>
     <mesh name="llink1" content_type="model/stl" file="llink1.STL"/>
     <mesh name="llink1_child1" content_type="model/stl" file="llink1_child1.STL"/>
-    <mesh name="llink1site2" content_type="model/stl" file="llink1site2.STL"/>
     <mesh name="lwlink" content_type="model/stl" file="lwlink.STL"/>
-    <mesh name="llink1site1" content_type="model/stl" file="llink1site1.STL"/>
     <mesh name="llink4" content_type="model/stl" file="llink4.STL"/>
     <mesh name="llink4_child1" content_type="model/stl" file="llink4_child1.STL"/>
     <mesh name="llink4_child2" content_type="model/stl" file="llink4_child2.STL"/>
-    <mesh name="llink4site1" content_type="model/stl" file="llink4site1.STL"/>
     <mesh name="llink4_child3" content_type="model/stl" file="llink4_child3.STL"/>
-    <mesh name="llink4site2" content_type="model/stl" file="llink4site2.STL"/>
     <mesh name="rlink1" content_type="model/stl" file="rlink1.STL"/>
     <mesh name="rlink1_child1" content_type="model/stl" file="rlink1_child1.STL"/>
-    <mesh name="rlink1_site2" content_type="model/stl" file="rlink1_site2.STL"/>
     <mesh name="rwlink" content_type="model/stl" file="rwlink.STL"/>
-    <mesh name="rlink1_site1" content_type="model/stl" file="rlink1_site1.STL"/>
     <mesh name="rlink4" content_type="model/stl" file="rlink4.STL"/>
     <mesh name="rlink4_child1" content_type="model/stl" file="rlink4_child1.STL"/>
     <mesh name="rlink4_child2" content_type="model/stl" file="rlink4_child2.STL"/>
-    <mesh name="rlink4_site1" content_type="model/stl" file="rlink4_site1.STL"/>
     <mesh name="rlink4_child3" content_type="model/stl" file="rlink4_child3.STL"/>
-    <mesh name="rlink4_site2" content_type="model/stl" file="rlink4_site2.STL"/>
   </asset>
 
   <worldbody>
@@ -36,13 +28,11 @@
         <joint name="ljoint1" pos="0 0 0" axis="0 -1 0" range="-3.1416 3.1416" damping="0.1" actuatorfrcrange="-35 35"/>
         <site name="llink1_site1" pos="-0.0996438 0.008 -0.00843343" size="0.005" rgba="1 1 0 1"/>
         <geom type="mesh" rgba="0.89804 0.91765 0.92941 1" mesh="llink1"/>
-        <geom pos="-0.0996438 0.008 -0.00843343" type="mesh" rgba="1 1 1 1" mesh="llink1site1"/>
         <body name="llink1_child1" pos="-0.214234 -0.008 -0.0181319">
           <inertial pos="0.1117709 0.01700516 -0.04852344" mass="0.239193401395539" fullinertia="0.0004237454 0.002361791 0.001943669 -4.110076E-06 0.0007744541 2.403068E-06"/>
           <joint name="llink1childjoint1" pos="0 0 0" axis="0 -1 0" range="-3.1416 3.1416" damping="0.05"/>
           <site name="llink1_site2" pos="-0.0436648 0.0145 0.0411508" size="0.005" rgba="1 1 0 1"/>
           <geom type="mesh" rgba="1 1 1 1" mesh="llink1_child1"/>
-          <geom pos="-0.0436648 0.0145 0.0411508" type="mesh" rgba="1 1 1 1" mesh="llink1site2"/>
           <body name="lwlink" pos="0.233282 0.05495 -0.100477">
             <inertial pos="0.0001294144 -0.01560784 1.511712E-05" mass="0.248106367527013" fullinertia="0.0002156902 0.0003872389 0.0002149108 2.415911E-07 2.294135E-08 6.096467E-09"/>
             <joint name="lwheel" pos="0 0 0" axis="0 -1 0" range="-3.1416 3.1416" damping="0.01" actuatorfrcrange="-10 10"/>
@@ -63,13 +53,11 @@
             <joint name="llink4child2joint" pos="0 0 0" axis="0 -1 0" range="-3.1416 3.1416" damping="0.02"/>
             <site name="llink4_site1" pos="-0.108503 0.0105 0.0467339" size="0.005" rgba="1 0 0 1"/>
             <geom type="mesh" rgba="1 1 1 1" mesh="llink4_child2"/>
-            <geom pos="-0.108503 0.0105 0.0467339" type="mesh" rgba="1 1 1 1" mesh="llink4site1"/>
             <body name="llink4_child3" pos="-0.152168 0.0135 0.0878846">
               <inertial pos="-0.05729516 -0.0135 -0.004849221" mass="0.0356582479332101" fullinertia="1.906389E-06 5.903595E-05 5.772386E-05 0 -4.758241E-06 0"/>
               <joint name="llink4child3joint" pos="0 0 0" axis="0 -1 0" range="-3.1416 3.1416" damping="0.02"/>
               <site name="llink4_site2" pos="-0.11459 -0.0045 -0.00969844" size="0.005" rgba="1 0 0 1"/>
               <geom type="mesh" rgba="1 1 1 1" mesh="llink4_child3"/>
-              <geom pos="-0.11459 -0.0045 -0.00969844" type="mesh" rgba="1 1 1 1" mesh="llink4site2"/>
             </body>
           </body>
         </body>
@@ -79,13 +67,11 @@
         <joint name="rjoint1" pos="0 0 0" axis="0 1 0" range="-3.1416 3.1416" damping="0.1" actuatorfrcrange="-35 35"/>
         <site name="rlink1_site1" pos="-0.0996438 -0.008 -0.00843343" size="0.005" rgba="1 1 0 1"/>
         <geom type="mesh" rgba="0.89804 0.91765 0.92941 1" mesh="rlink1"/>
-        <geom pos="-0.0996438 -0.008 -0.00843343" type="mesh" rgba="1 1 1 1" mesh="rlink1_site1"/>
         <body name="rlink1_child1" pos="-0.214234 -0.0175 -0.0181319">
           <inertial pos="0.1117709 0.008494837 -0.04852344" mass="0.239193401395539" fullinertia="0.0004237454 0.002361791 0.001943669 4.110076E-06 0.0007744541 -2.403068E-06"/>
           <joint name="rchild1joint" pos="0 0 0" axis="0 1 0" range="-3.1416 3.1416" damping="0.05"/>
           <site name="rlink1_site2" pos="-0.0436648 0.011 0.0411508" size="0.005" rgba="1 1 0 1"/>
           <geom type="mesh" rgba="1 1 1 1" mesh="rlink1_child1"/>
-          <geom pos="-0.0436648 0.011 0.0411508" type="mesh" rgba="1 1 1 1" mesh="rlink1_site2"/>
           <body name="rwlink" pos="0.233282 -0.02945 -0.100477">
             <inertial pos="0.0001294142 0.01560784 1.511721E-05" mass="0.248106347100355" fullinertia="0.0002156902 0.0003872389 0.0002149108 -2.415902E-07 2.294301E-08 -6.098415E-09"/>
             <joint name="rwheel" pos="0 0 0" axis="0 1 0" range="-3.1416 3.1416" damping="0.01" actuatorfrcrange="-15 15"/>
@@ -106,13 +92,11 @@
             <joint name="rlink4child2joint" pos="0 0 0" axis="0 1 0" range="-3.1416 3.1416" damping="0.02"/>
             <site name="rlink4_site1" pos="-0.108503 0 0.0467339" size="0.005" rgba="1 0 0 1"/>
             <geom type="mesh" rgba="1 1 1 1" mesh="rlink4_child2"/>
-            <geom pos="-0.108503 0 0.0467339" type="mesh" rgba="1 1 1 1" mesh="rlink4_site1"/>
             <body name="rlink4_child3" pos="-0.152168 0.0105 0.0878846">
               <inertial pos="-0.05729516 0 -0.004849221" mass="0.0356582479332101" fullinertia="1.906389E-06 5.903595E-05 5.772386E-05 0 -4.758241E-06 0"/>
               <joint name="rlink4child3joint" pos="0 0 0" axis="0 1 0" range="-3.1416 3.1416" damping="0.02"/>
               <site name="rlink4_site2" pos="-0.11459 -0.009 -0.00969844" size="0.005" rgba="1 0 0 1"/>
               <geom type="mesh" rgba="1 1 1 1" mesh="rlink4_child3"/>
-              <geom pos="-0.11459 -0.009 -0.00969844" type="mesh" rgba="1 1 1 1" mesh="rlink4_site2"/>
             </body>
           </body>
         </body>
