@@ -30,7 +30,7 @@
         <geom type="mesh" rgba="0.89804 0.91765 0.92941 1" mesh="llink1"/>
         <body name="llink1_child1" pos="-0.214234 -0.008 -0.0181319">
           <inertial pos="0.1117709 0.01700516 -0.04852344" mass="0.239193401395539" fullinertia="0.0004237454 0.002361791 0.001943669 -4.110076E-06 0.0007744541 2.403068E-06"/>
-          <joint name="llink1childjoint1" pos="0 0 0" axis="0 -1 0" range="-3.1416 3.1416" damping="0.05"/>
+          <joint name="llink1child1joint" pos="0 0 0" axis="0 -1 0" limited="true" range="-1.09439510 -0.26179938" damping="0.05" solreflimit="0.001 1" solimplimit="0.99 0.99 0.01"/>
           <site name="llink1_site2" pos="-0.0436648 0.0145 0.0411508" size="0.005" rgba="1 1 0 1"/>
           <geom type="mesh" rgba="1 1 1 1" mesh="llink1_child1"/>
           <body name="lwlink" pos="0.233282 0.05495 -0.100477">
@@ -69,7 +69,7 @@
         <geom type="mesh" rgba="0.89804 0.91765 0.92941 1" mesh="rlink1"/>
         <body name="rlink1_child1" pos="-0.214234 -0.0175 -0.0181319">
           <inertial pos="0.1117709 0.008494837 -0.04852344" mass="0.239193401395539" fullinertia="0.0004237454 0.002361791 0.001943669 4.110076E-06 0.0007744541 -2.403068E-06"/>
-          <joint name="rchild1joint" pos="0 0 0" axis="0 1 0" range="-3.1416 3.1416" damping="0.05"/>
+          <joint name="rlink1child1joint" pos="0 0 0" axis="0 1 0" limited="true" range="0.26179938 1.09439510" damping="0.05" solreflimit="0.001 1" solimplimit="0.99 0.99 0.01"/>
           <site name="rlink1_site2" pos="-0.0436648 0.011 0.0411508" size="0.005" rgba="1 1 0 1"/>
           <geom type="mesh" rgba="1 1 1 1" mesh="rlink1_child1"/>
           <body name="rwlink" pos="0.233282 -0.02945 -0.100477">
