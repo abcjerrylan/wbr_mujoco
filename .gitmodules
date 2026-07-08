@@ -1,0 +1,3 @@
+[submodule "mujoco_interface"]
+	path = mujoco_interface
+	url = git@github.com:CosmosMount/mujoco_interface.git
