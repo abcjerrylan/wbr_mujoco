@@ -31,9 +31,6 @@ add_subdirectory(mujoco_interface)
 
 # --- bridge ---
 add_library(bridge
-  bridge/src/control_cycle.cpp
-  bridge/src/shm_transport.cpp
-  bridge/src/msg_transport.cpp
   bridge/src/shm_bridge.cpp
   bridge/src/sim_config.cpp
   bridge/src/app_control.cpp
@@ -41,7 +38,6 @@ add_library(bridge
 target_include_directories(bridge PUBLIC bridge/include)
 target_link_libraries(bridge PUBLIC
   mujoco_interface
-  msg
   robot_ipc
   robot_msgs
   yaml-cpp
@@ -55,7 +51,7 @@ set_target_properties(sim PROPERTIES
 )
 
 add_executable(ctrl ctrl/src/main.cpp)
-target_link_libraries(ctrl PRIVATE robot_ipc robot_msgs msg Threads::Threads)
+target_link_libraries(ctrl PRIVATE robot_ipc robot_msgs Threads::Threads)
 set_target_properties(ctrl PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )

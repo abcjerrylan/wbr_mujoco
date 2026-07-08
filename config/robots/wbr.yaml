@@ -52,5 +52,4 @@ motors:
     sign: {pos: 1, vel: 1, cmd: 1}
 
 control:
-  default_mode: torque
   decimation: 1
