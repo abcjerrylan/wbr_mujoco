@@ -1,0 +1,56 @@
+schema_version: 1
+robot: wbr
+scene: ../../mjcf/scene.xml
+ipc_prefix: wbr
+
+imu:
+  quat: imu_quat
+  gyro: imu_gyro
+  accel: imu_accel
+
+motors:
+  - name: ljoint1
+    actuator: ljoint1_actuator
+    pos: ljoint1_pos
+    vel: ljoint1_vel
+    tor: ljoint1_tor
+    sign: {pos: 1, vel: 1, cmd: -1}
+
+  - name: ljoint4
+    actuator: ljoint4_actuator
+    pos: ljoint4_pos
+    vel: ljoint4_vel
+    tor: ljoint4_tor
+    sign: {pos: -1, vel: -1, cmd: -1}
+
+  - name: lwheel
+    actuator: lwheel_actuator
+    pos: lwheel_pos
+    vel: lwheel_vel
+    tor: lwheel_tor
+    sign: {pos: 1, vel: 1, cmd: 1}
+
+  - name: rjoint1
+    actuator: rjoint1_actuator
+    pos: rjoint1_pos
+    vel: rjoint1_vel
+    tor: rjoint1_tor
+    sign: {pos: 1, vel: 1, cmd: 1}
+
+  - name: rjoint4
+    actuator: rjoint4_actuator
+    pos: rjoint4_pos
+    vel: rjoint4_vel
+    tor: rjoint4_tor
+    sign: {pos: 1, vel: 1, cmd: 1}
+
+  - name: rwheel
+    actuator: rwheel_actuator
+    pos: rwheel_pos
+    vel: rwheel_vel
+    tor: rwheel_tor
+    sign: {pos: 1, vel: 1, cmd: 1}
+
+control:
+  default_mode: torque
+  decimation: 1
