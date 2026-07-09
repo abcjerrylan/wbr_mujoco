@@ -33,6 +33,10 @@ void shm_bridge::Reset()
     state_ = robot_msgs::LowState{};
     cmd_ = robot_msgs::LowCmd{};
     last_cmd_ = robot_msgs::LowCmd{};
+    if (cmd_in_.valid())
+    {
+        cmd_in_.invalidate();
+    }
 }
 
 void shm_bridge::PushState(const robot_msgs::LowState& state)
@@ -82,6 +86,12 @@ void shm_bridge::Step()
     if (have_command)
     {
         adapter_->write_command(cmd_);
+    }
+    else if (adapter_ != nullptr)
+    {
+        robot_msgs::LowCmd zero{};
+        zero.num_motors = adapter_->num_motors();
+        adapter_->write_command(zero);
     }
     adapter_->read_state(state_);
     PushState(state_);

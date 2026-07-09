@@ -202,6 +202,9 @@ public:
     {
         msg_ = {};
         msg_.len = cfg.lmin;
+        move_enabled_ = false;
+        space_prev_ = false;
+        space_armed_ = false;
         vel_slope_.set_default(0.0f);
         vel_slope_.set_path(0.006f);
         yaw_slope_.set_default(0.0f);
@@ -241,7 +244,20 @@ public:
             len_target_ = cfg.lmax;
         }
 
-        msg_.move = input.space;
+        if (!space_armed_)
+        {
+            if (!input.space)
+            {
+                space_armed_ = true;
+            }
+        }
+        else if (input.space && !space_prev_)
+        {
+            move_enabled_ = !move_enabled_;
+        }
+        space_prev_ = input.space;
+
+        msg_.move = move_enabled_;
         msg_.v = vel_slope_.value();
         msg_.dyaw = yaw_slope_.value();
         msg_.len = len_target_;
@@ -262,6 +278,9 @@ public:
 
 private:
     msg_cmd_t msg_{};
+    bool move_enabled_ = false;
+    bool space_prev_ = false;
+    bool space_armed_ = false;
     slope vel_slope_{0.0f, 0.006f};
     slope yaw_slope_{0.0f, 0.006f};
     float len_target_ = 0.16f;

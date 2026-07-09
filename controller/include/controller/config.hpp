@@ -20,7 +20,6 @@ struct app_config
     control::imu_sim_config imu_sim{};
     control::imu_mode imu_mode = control::imu_mode::mahony;
     float control_hz = 1000.0f;
-    float motor_sign_cmd[6] = {-1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
     logger_config logger{};
 };
 

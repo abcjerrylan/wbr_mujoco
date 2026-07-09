@@ -106,6 +106,18 @@ public:
         }
     }
 
+    void invalidate()
+    {
+        if (!valid())
+        {
+            return;
+        }
+
+        pthread_mutex_lock(&block_->header.mutex);
+        block_->header.valid = 0;
+        pthread_mutex_unlock(&block_->header.mutex);
+    }
+
 private:
     static constexpr std::uint32_t kMagic = 0x57425231u;
 

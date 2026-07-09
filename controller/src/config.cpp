@@ -31,6 +31,110 @@ bool file_exists(const std::string& path)
     return file.good();
 }
 
+control::pid_mode parse_pid_mode(const std::string& mode)
+{
+    return mode == "dvel" ? control::pid_mode::dvel : control::pid_mode::position;
+}
+
+void parse_pid_params(const YAML::Node& node, control::pid_params& params)
+{
+    if (!node)
+    {
+        return;
+    }
+    if (node["kp"])
+    {
+        params.kp = node["kp"].as<float>();
+    }
+    if (node["ki"])
+    {
+        params.ki = node["ki"].as<float>();
+    }
+    if (node["kd"])
+    {
+        params.kd = node["kd"].as<float>();
+    }
+    if (node["max_out"])
+    {
+        params.max_out = node["max_out"].as<float>();
+    }
+    if (node["max_i"])
+    {
+        params.max_i_out = node["max_i"].as<float>();
+    }
+    if (node["mode"])
+    {
+        params.mode = parse_pid_mode(node["mode"].as<std::string>());
+    }
+}
+
+void parse_phi_state_pid(const YAML::Node& node, control::phi_state_pid& params)
+{
+    if (!node)
+    {
+        return;
+    }
+    if (node["kp"])
+    {
+        params.kp = node["kp"].as<float>();
+    }
+    if (node["kd"])
+    {
+        params.kd = node["kd"].as<float>();
+    }
+    if (node["slope"])
+    {
+        params.slope = node["slope"].as<float>();
+    }
+}
+
+void parse_pid_config(const YAML::Node& pid_node, control::chassis_config& chassis)
+{
+    if (!pid_node)
+    {
+        return;
+    }
+
+    if (pid_node["leg"])
+    {
+        const YAML::Node leg = pid_node["leg"];
+        parse_pid_params(leg["len"], chassis.leg_pid.len);
+        parse_pid_params(leg["phi"], chassis.leg_pid.phi);
+    }
+
+    if (pid_node["roll"])
+    {
+        parse_pid_params(pid_node["roll"], chassis.fsm_pid.roll);
+    }
+
+    if (pid_node["len_balance"])
+    {
+        parse_pid_params(pid_node["len_balance"], chassis.fsm_pid.len_balance);
+    }
+
+    if (pid_node["recover"])
+    {
+        const YAML::Node recover = pid_node["recover"];
+        parse_phi_state_pid(recover, chassis.fsm_pid.recover);
+        if (recover["kick_torque"])
+        {
+            chassis.fsm_pid.recover_kick_torque = recover["kick_torque"].as<float>();
+        }
+    }
+
+    if (pid_node["flatten"])
+    {
+        const YAML::Node flatten = pid_node["flatten"];
+        parse_phi_state_pid(flatten["high_phi"], chassis.fsm_pid.flatten_high);
+        parse_phi_state_pid(flatten["low_phi"], chassis.fsm_pid.flatten_low);
+    }
+
+    if (pid_node["neutral"])
+    {
+        parse_phi_state_pid(pid_node["neutral"], chassis.fsm_pid.neutral);
+    }
+}
+
 void parse_args(int argc, char** argv, app_config& cfg)
 {
     for (int i = 1; i < argc; ++i)
@@ -105,6 +209,18 @@ bool load_yaml(const std::string& path, app_config& cfg, std::string& error)
         if (control_node && control_node["force_relax"])
         {
             cfg.chassis.force_relax = control_node["force_relax"].as<bool>();
+        }
+        if (control_node && control_node["motor_zero_rad"] && control_node["motor_zero_rad"].IsSequence())
+        {
+            const YAML::Node z = control_node["motor_zero_rad"];
+            for (std::size_t i = 0; i < 6 && i < z.size(); ++i)
+            {
+                cfg.chassis.motor_zero_rad[i] = z[i].as<float>();
+            }
+        }
+        if (control_node && control_node["pid"])
+        {
+            parse_pid_config(control_node["pid"], cfg.chassis);
         }
 
         const YAML::Node log_node = root["logger"];

@@ -61,16 +61,20 @@ void apply_cli_overrides(int argc, char** argv, bridge::app_control& control)
         {
             std::printf("Usage: sim [mujoco options] [--ipc-prefix NAME] [--forward-input] [--keyboard-trial]\n");
             std::printf("  [--print-state [HZ]] [--no-print-state]\n");
-            std::printf("  With -c/--config, LowState is printed at 5 Hz by default.\n");
+            std::printf("  With -c/--config, input forwarding and LowState print (5 Hz) are enabled by default.\n");
             std::printf("  --print-state [HZ]  override print rate (default 5 Hz)\n");
             std::printf("  --no-print-state    disable state printing\n");
             std::exit(0);
         }
     }
 
-    if (has_robot_config && !print_state_set)
+    if (has_robot_config)
     {
-        control.set_print_state_hz(5.0);
+        control.set_forward_input(true);
+        if (!print_state_set)
+        {
+            control.set_print_state_hz(5.0);
+        }
     }
 }
 

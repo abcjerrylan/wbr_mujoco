@@ -123,6 +123,8 @@ bool app_control::init(mujoco_interface::robot::interface& robot, const std::str
 
     if (forward_input_)
     {
+        // Capture control keys so the viewer doesn't consume them (e.g. Space pause).
+        mujoco_interface::input::hub::instance().capture_control_keys();
         input_out_ = robot_ipc::ShmChannel<bridge::input_shm_t>::open_server(prefix + "_input");
         if (!input_out_.valid())
         {
@@ -130,6 +132,8 @@ bool app_control::init(mujoco_interface::robot::interface& robot, const std::str
             enabled_ = false;
             return false;
         }
+        input_out_.invalidate();
+        publish_input_shm({}, input_out_);
         std::printf("input forwarding enabled on /%s_input\n", prefix.c_str());
     }
 

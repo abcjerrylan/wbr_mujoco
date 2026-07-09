@@ -52,7 +52,7 @@ public:
         target_len_ = cfg_.lmin;
         len_slope_.set_default(cfg_.lmin);
         len_slope_.set_path(0.0002f);
-        roll_pd_ = pid(0.7f, 0.0001f, 1.4f, 0.05f, 0.005f);
+        roll_pd_ = pid(cfg_.fsm_pid.roll);
         std::memset(ref_x_, 0, sizeof(ref_x_));
     }
 
@@ -178,24 +178,25 @@ private:
             return;
         }
 
+        const auto& rp = cfg_.fsm_pid.recover;
         if (pitch > 0.0f)
         {
-            fl[1] = l.phi_control(0.0f, 20.0f, 10.0f, 0.005f, true);
-            fr[1] = r.phi_control(0.0f, 20.0f, 10.0f, 0.005f, true);
+            fl[1] = l.phi_control(0.0f, rp.kp, rp.kd, rp.slope, true);
+            fr[1] = r.phi_control(0.0f, rp.kp, rp.kd, rp.slope, true);
             if (std::fabs(l.link().phi_) < 0.1f && std::fabs(r.link().phi_) < 0.1f)
             {
-                fl[1] = -35.0f;
-                fr[1] = 35.0f;
+                fl[1] = -cfg_.fsm_pid.recover_kick_torque;
+                fr[1] = cfg_.fsm_pid.recover_kick_torque;
             }
         }
         else
         {
-            fl[1] = l.phi_control(k_pi, 20.0f, 10.0f, 0.005f, false);
-            fr[1] = r.phi_control(k_pi, 20.0f, 10.0f, 0.005f, false);
+            fl[1] = l.phi_control(k_pi, rp.kp, rp.kd, rp.slope, false);
+            fr[1] = r.phi_control(k_pi, rp.kp, rp.kd, rp.slope, false);
             if (std::fabs(l.link().phi_ - k_pi) < 0.1f && std::fabs(r.link().phi_ - k_pi) < 0.1f)
             {
-                fl[1] = 35.0f;
-                fr[1] = -35.0f;
+                fl[1] = cfg_.fsm_pid.recover_kick_torque;
+                fr[1] = -cfg_.fsm_pid.recover_kick_torque;
             }
         }
         twl = 0.0f;
@@ -209,6 +210,9 @@ private:
         out.pendulum.normal = true;
         out.pendulum.recovered = true;
 
+        const auto& fh = cfg_.fsm_pid.flatten_high;
+        const auto& flw = cfg_.fsm_pid.flatten_low;
+
         if (l.link().flat_)
         {
             fl[0] = fl[1] = 0.0f;
@@ -217,11 +221,11 @@ private:
         }
         else if (l.link().phi_ >= k_pi * 0.4f)
         {
-            fl[1] = l.phi_control(k_pi, 10.0f, 5.0f, 0.01f, true);
+            fl[1] = l.phi_control(k_pi, fh.kp, fh.kd, fh.slope, true);
         }
         else
         {
-            fl[1] = l.phi_control(k_pi, 5.0f, 10.0f, 0.002f, false);
+            fl[1] = l.phi_control(k_pi, flw.kp, flw.kd, flw.slope, false);
         }
 
         if (r.link().flat_)
@@ -232,11 +236,11 @@ private:
         }
         else if (r.link().phi_ >= k_pi * 0.4f)
         {
-            fr[1] = r.phi_control(k_pi, 10.0f, 5.0f, 0.01f, true);
+            fr[1] = r.phi_control(k_pi, fh.kp, fh.kd, fh.slope, true);
         }
         else
         {
-            fr[1] = r.phi_control(k_pi, 5.0f, 10.0f, 0.002f, false);
+            fr[1] = r.phi_control(k_pi, flw.kp, flw.kd, flw.slope, false);
         }
 
         fl[0] = fr[0] = 0.0f;
@@ -253,10 +257,11 @@ private:
         auto& r = in.right;
         const auto& ll = l.link();
         const auto& rl = r.link();
+        const auto& np = cfg_.fsm_pid.neutral;
         fl[0] = l.len_control(ll.len_ + (cfg_.lmin - ll.len_) * 0.6f);
         fr[0] = r.len_control(rl.len_ + (cfg_.lmin - rl.len_) * 0.6f);
-        fl[1] = l.phi_control(k_pi * 0.5f, 30.0f, 10.0f, 0.003f, ll.phi_ < k_pi * 0.45f);
-        fr[1] = r.phi_control(k_pi * 0.5f, 30.0f, 10.0f, 0.003f, rl.phi_ < k_pi * 0.45f);
+        fl[1] = l.phi_control(k_pi * 0.5f, np.kp, np.kd, np.slope, ll.phi_ < k_pi * 0.45f);
+        fr[1] = r.phi_control(k_pi * 0.5f, np.kp, np.kd, np.slope, rl.phi_ < k_pi * 0.45f);
         if (in.cmd.v > 0.005f)
         {
             twl = twr = 1.5f;
@@ -344,8 +349,9 @@ private:
             r.delta_init_ = false;
         }
 
-        l.tune_len_pd(2000.0f, 0.0f, -400.0f);
-        r.tune_len_pd(2000.0f, 0.0f, -400.0f);
+        const auto& lb = cfg_.fsm_pid.len_balance;
+        l.tune_len_pd(lb.kp, lb.ki, lb.kd);
+        r.tune_len_pd(lb.kp, lb.ki, lb.kd);
         (void)pitch;
     }
 
@@ -433,14 +439,15 @@ private:
             state_ = chassis_state::normal;
         }
 
-        l.tune_len_pd(2000.0f, 0.0f, -400.0f);
-        r.tune_len_pd(2000.0f, 0.0f, -400.0f);
+        const auto& lb = cfg_.fsm_pid.len_balance;
+        l.tune_len_pd(lb.kp, lb.ki, lb.kd);
+        r.tune_len_pd(lb.kp, lb.ki, lb.kd);
     }
 
     chassis_config cfg_ = k_default_chassis;
     chassis_state state_ = chassis_state::relax;
     lqr_solver lqr_;
-    pid roll_pd_{0.7f, 0.0001f, 1.4f, 0.05f, 0.005f};
+    pid roll_pd_{k_default_chassis.fsm_pid.roll};
     slope len_slope_{0.16f, 0.0002f};
     float ref_x_[10] = {};
     float target_len_ = 0.16f;

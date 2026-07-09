@@ -9,15 +9,14 @@
 namespace control
 {
 
-enum class pid_mode : std::uint8_t
-{
-    position = 0x01,
-    dvel = 0x02
-};
-
 class pid
 {
 public:
+    explicit pid(const pid_params& params)
+        : pid(params.kp, params.ki, params.kd, params.max_out, params.max_i_out, params.mode)
+    {
+    }
+
     pid(float kp, float ki, float kd, float max_out, float max_i_out, pid_mode mode = pid_mode::position)
         : kp_(kp), ki_(ki), kd_(kd), max_out_(max_out), max_i_out_(max_i_out), mode_(mode)
     {
@@ -113,16 +112,23 @@ private:
 class link_solver
 {
 public:
-    link_solver(bool reverse, const chassis_config& cfg) : reverse_(reverse), cfg_(cfg) {}
+    link_solver(bool reverse, int j1_motor_idx, int j4_motor_idx, const chassis_config& cfg)
+        : reverse_(reverse), j1_motor_idx_(j1_motor_idx), j4_motor_idx_(j4_motor_idx), cfg_(cfg)
+    {
+    }
 
     void solve(float pitch, float dpitch, float az, const motor_feedback& j1, const motor_feedback& j4)
     {
-        const float phi1 = reverse_ ? (k_pi - j1.q) : (k_pi + j1.q);
-        const float phi4 = reverse_ ? (-j4.q) : j4.q;
+        const float j1_q = j1.q - cfg_.motor_zero_rad[j1_motor_idx_];
+        const float j4_q = j4.q - cfg_.motor_zero_rad[j4_motor_idx_];
+
+        // Unified ctrl frame is defined on the left leg (left view positive).
+        const float phi1 = reverse_ ? (k_pi - j1_q) : (k_pi + j1_q);
+        const float phi4 = reverse_ ? j4_q : (-j4_q);
         const float dphi1 = reverse_ ? (-j1.dq) : j1.dq;
-        const float dphi4 = reverse_ ? (-j4.dq) : j4.dq;
+        const float dphi4 = reverse_ ? j4.dq : (-j4.dq);
         const float joint1_tor = reverse_ ? (-j1.tau) : j1.tau;
-        const float joint4_tor = reverse_ ? (-j4.tau) : j4.tau;
+        const float joint4_tor = j4.tau;
 
         resolve(phi1, phi4);
 
@@ -168,7 +174,7 @@ public:
         n_ = p + cfg_.mwheel * k_gravity + cfg_.mwheel * zw;
 
         neutral_ = std::fabs(alpha_) < 0.5f;
-        flat_ = (phi_ >= 2.5f && phi_ <= 3.1f);
+        flat_ = (phi_ >= 2.0f && phi_ <= 3.1f);
         prev_dlen_ = dlen_;
         prev_dalpha_ = dalpha_;
     }
@@ -260,6 +266,8 @@ private:
     }
 
     bool reverse_ = false;
+    int j1_motor_idx_ = 0;
+    int j4_motor_idx_ = 1;
     chassis_config cfg_;
     float phi1_ = 0.0f;
     float phi4_ = 0.0f;
@@ -282,7 +290,20 @@ private:
 class leg_controller
 {
 public:
-    leg_controller(bool reverse, const chassis_config& cfg) : reverse_(reverse), cfg_(cfg), link_(reverse, cfg) {}
+    leg_controller(bool reverse, int j1_motor_idx, int j4_motor_idx, const chassis_config& cfg)
+        : reverse_(reverse),
+          cfg_(cfg),
+          link_(reverse, j1_motor_idx, j4_motor_idx, cfg),
+          len_pd_(cfg.leg_pid.len),
+          phi_pd_(cfg.leg_pid.phi)
+    {
+    }
+
+    bool reverse() const { return reverse_; }
+
+    float hip_sign() const { return reverse_ ? -1.0f : 1.0f; }
+
+    float wheel_sign() const { return reverse_ ? 1.0f : -1.0f; }
 
     link_solver& link() { return link_; }
     const link_solver& link() const { return link_; }
@@ -337,12 +358,12 @@ public:
 
     void apply_torque(const float f[2], float tw, float& j1_tau, float& j4_tau, float& wheel_tau) const
     {
+        float fvmc[2] = {reverse_ ? -f[0] : f[0], f[1]};
         float t[2] = {};
-        link_.vmc_cal(f, t);
-        const float sign = reverse_ ? -1.0f : 1.0f;
-        j1_tau = clamp(t[0], -cfg_.thip_max, cfg_.thip_max) * sign;
-        j4_tau = clamp(t[1], -cfg_.thip_max, cfg_.thip_max) * sign;
-        wheel_tau = clamp(tw, -cfg_.twheel_max, cfg_.twheel_max) * (reverse_ ? 1.0f : -1.0f);
+        link_.vmc_cal(fvmc, t);
+        j1_tau = clamp(t[0], -cfg_.thip_max, cfg_.thip_max) * hip_sign();
+        j4_tau = clamp(t[1], -cfg_.thip_max, cfg_.thip_max) * hip_sign();
+        wheel_tau = clamp(tw, -cfg_.twheel_max, cfg_.twheel_max) * wheel_sign();
     }
 
     void tune_len_pd(float kp, float ki, float kd) { len_pd_.tuning(kp, ki, kd); }
@@ -353,8 +374,8 @@ private:
     bool reverse_ = false;
     chassis_config cfg_;
     link_solver link_;
-    pid len_pd_{5000.0f, 0.0f, -1500.0f, 125.0f, 0.0f, pid_mode::dvel};
-    pid phi_pd_{0.7f, 0.0f, 1.4f, 40.0f, 0.005f};
+    pid len_pd_;
+    pid phi_pd_;
     slope phi_updater_{0.0f, 0.005f};
     float target_phi_ = 0.0f;
 };

@@ -45,7 +45,7 @@ public:
         for (std::uint32_t i = 0; i < cmd.num_motors && i < 6; ++i)
         {
             cmd.motors[i].mode = robot_msgs::kMotorModeTorque;
-            cmd.motors[i].tau = motor.tau[i] * cfg_.motor_sign_cmd[i];
+            cmd.motors[i].tau = motor.tau[i];
         }
         cmd_out_.write(cmd);
     }
@@ -214,6 +214,7 @@ void print_state_block(double time, const control::msg_ins_t& ins, const control
 output_node::output_node(const app_config& cfg, shm_io& io, std::atomic<bool>& running)
     : cfg_(cfg), io_(io), running_(running), thread_([this] { loop(); })
 {
+    io_.write_low_cmd({});
 }
 
 output_node::~output_node()
@@ -339,8 +340,9 @@ control_node::~control_node()
 
 void control_node::loop()
 {
-    control::leg_controller left(false, cfg_.chassis);
-    control::leg_controller right(true, cfg_.chassis);
+    // Left-view positive: left leg is the reference frame, right leg is mirrored.
+    control::leg_controller left(true, 0, 1, cfg_.chassis);
+    control::leg_controller right(false, 3, 4, cfg_.chassis);
     control::odometry odom;
     control::chassis_fsm fsm;
     fsm.init(cfg_.chassis);
@@ -368,8 +370,8 @@ void control_node::loop()
         const float dpitch = ins.gyro_p;
         const float yaw = ins.total_yaw;
         const float dyaw = ins.gyro_y;
-        const float vl = -raw.motors[2].dq * cfg_.chassis.rwheel;
-        const float vr = raw.motors[5].dq * cfg_.chassis.rwheel;
+        const float vl = raw.motors[2].dq * cfg_.chassis.rwheel * left.wheel_sign();
+        const float vr = raw.motors[5].dq * cfg_.chassis.rwheel * right.wheel_sign();
 
         left.link().solve(pitch, dpitch, 0.0f, raw.motors[0], raw.motors[1]);
         right.link().solve(pitch, dpitch, 0.0f, raw.motors[3], raw.motors[4]);
@@ -405,6 +407,11 @@ void control_node::loop()
 
         control::fsm_outputs fout{};
         fsm.step(fin, fout);
+
+        if (!cmd.move || cfg_.chassis.force_relax)
+        {
+            std::memset(&fout.motor, 0, sizeof(fout.motor));
+        }
 
         msg::publish(fout.motor, {false});
         msg::publish(fout.pendulum, {false});
