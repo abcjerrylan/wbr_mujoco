@@ -83,6 +83,12 @@ public:
         dec_path_ = path;
     }
 
+    void set_asymmetric(float inc, float dec)
+    {
+        inc_path_ = inc;
+        dec_path_ = dec;
+    }
+
     float update_val(float target)
     {
         const float delta = target - val_;
@@ -117,18 +123,22 @@ public:
     {
     }
 
+    // Sign convention (left view, CCW positive):
+    //   phi1/phi4, phi, alpha — CCW positive
+    //   F[0] — virtual leg-axis force; positive extends leg length
+    //   F[1] — hip torque in VMC; positive is CCW
+    //   Motor tau — MuJoCo actuator sign; hip/wheel scaled by reverse only in apply_torque()
     void solve(float pitch, float dpitch, float az, const motor_feedback& j1, const motor_feedback& j4)
     {
         const float j1_q = j1.q - cfg_.motor_zero_rad[j1_motor_idx_];
         const float j4_q = j4.q - cfg_.motor_zero_rad[j4_motor_idx_];
 
-        // Unified ctrl frame is defined on the left leg (left view positive).
         const float phi1 = reverse_ ? (k_pi - j1_q) : (k_pi + j1_q);
-        const float phi4 = reverse_ ? j4_q : (-j4_q);
+        const float phi4 = reverse_ ? (-j4_q) : j4_q;
         const float dphi1 = reverse_ ? (-j1.dq) : j1.dq;
-        const float dphi4 = reverse_ ? j4.dq : (-j4.dq);
+        const float dphi4 = reverse_ ? (-j4.dq) : j4.dq;
         const float joint1_tor = reverse_ ? (-j1.tau) : j1.tau;
-        const float joint4_tor = j4.tau;
+        const float joint4_tor = reverse_ ? (-j4.tau) : j4.tau;
 
         resolve(phi1, phi4);
 
@@ -166,7 +176,7 @@ public:
 
         const float cos_alpha = std::cos(alpha_);
         const float sin_alpha = std::sin(alpha_);
-        const float p = trev[0] * cos_alpha;
+        const float p = (trev[0] + fs_) * cos_alpha;
         const float ddlen = dlen_ - prev_dlen_;
         const float ddalpha = dalpha_ - prev_dalpha_;
         const float zw = (az - k_gravity) - ddlen * cos_alpha + 2.0f * dlen_ * dalpha_ * sin_alpha +
@@ -195,6 +205,7 @@ public:
     float n_ = 0.0f;
     float freal_ = 0.0f;
     float treal_hip_ = 0.0f;
+    float fs_ = 0.0f;
     float total_phi_ = 0.0f;
     bool flat_ = false;
     bool neutral_ = false;
@@ -251,6 +262,59 @@ private:
         jt_inv_mat_[1] = cos03 / (sin34 * cfg_.l1);
         jt_inv_mat_[2] = sin02 * len_kin_ / (sin12 * cfg_.l1);
         jt_inv_mat_[3] = -sin03 * len_kin_ / (sin34 * cfg_.l1);
+
+        calc_spring_force();
+    }
+
+    void calc_spring_force()
+    {
+        const float ang_p = phi1_ + cfg_.ang_spring - k_pi * 0.5f;
+        const float px = cfg_.dspring1 * std::cos(ang_p);
+        const float py = cfg_.dspring1 * std::sin(ang_p);
+
+        const float cos1 = std::cos(phi1_);
+        const float sin1 = std::sin(phi1_);
+        const float cos2 = std::cos(u2_);
+        const float sin2 = std::sin(u2_);
+        const float qx = cfg_.l1 * cos1 + cfg_.dspring2 * cos2;
+        const float qy = cfg_.l1 * sin1 + cfg_.dspring2 * sin2;
+
+        const float dpqx = qx - px;
+        const float dpqy = qy - py;
+        const float ls = std::sqrt(dpqx * dpqx + dpqy * dpqy);
+        if (ls < 1e-5f)
+        {
+            fs_ = 0.0f;
+            return;
+        }
+
+        const float fsx = cfg_.fspring * dpqx / ls;
+        const float fsy = cfg_.fspring * dpqy / ls;
+
+        const float s23 = std::sin(u3_ - u2_);
+        if (std::fabs(s23) < 0.05f)
+        {
+            fs_ = 0.0f;
+            return;
+        }
+
+        const float inv_l2s23 = 1.0f / (cfg_.l2 * s23);
+        const float dphi2_dphi1 = cfg_.l1 * std::sin(u3_ - phi1_) * inv_l2s23;
+        const float dphi2_dphi4 = cfg_.l1 * std::sin(phi4_ - u3_) * inv_l2s23;
+
+        const float dpx_d1 = -cfg_.dspring1 * std::sin(ang_p);
+        const float dpy_d1 = cfg_.dspring1 * std::cos(ang_p);
+        const float dqx_d1 = -cfg_.l1 * sin1 - cfg_.dspring2 * sin2 * dphi2_dphi1;
+        const float dqy_d1 = cfg_.l1 * cos1 + cfg_.dspring2 * cos2 * dphi2_dphi1;
+        const float dqx_d4 = -cfg_.dspring2 * sin2 * dphi2_dphi4;
+        const float dqy_d4 = cfg_.dspring2 * cos2 * dphi2_dphi4;
+
+        const float ddx_d1 = dqx_d1 - dpx_d1;
+        const float ddy_d1 = dqy_d1 - dpy_d1;
+        const float tau_s1 = fsx * ddx_d1 + fsy * ddy_d1;
+        const float tau_s4 = fsx * dqx_d4 + fsy * dqy_d4;
+
+        fs_ = jt_inv_mat_[0] * tau_s1 + jt_inv_mat_[1] * tau_s4;
     }
 
     void vmc_rev_cal(float f[2], const float t[2]) const
@@ -358,9 +422,8 @@ public:
 
     void apply_torque(const float f[2], float tw, float& j1_tau, float& j4_tau, float& wheel_tau) const
     {
-        float fvmc[2] = {reverse_ ? -f[0] : f[0], f[1]};
         float t[2] = {};
-        link_.vmc_cal(fvmc, t);
+        link_.vmc_cal(f, t);
         j1_tau = clamp(t[0], -cfg_.thip_max, cfg_.thip_max) * hip_sign();
         j4_tau = clamp(t[1], -cfg_.thip_max, cfg_.thip_max) * hip_sign();
         wheel_tau = clamp(tw, -cfg_.twheel_max, cfg_.twheel_max) * wheel_sign();

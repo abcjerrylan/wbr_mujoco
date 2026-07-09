@@ -51,7 +51,7 @@ public:
         going_stair_ = false;
         target_len_ = cfg_.lmin;
         len_slope_.set_default(cfg_.lmin);
-        len_slope_.set_path(0.0002f);
+        len_slope_.set_asymmetric(0.0002f, 0.0007f);
         roll_pd_ = pid(cfg_.fsm_pid.roll);
         std::memset(ref_x_, 0, sizeof(ref_x_));
     }
@@ -258,8 +258,8 @@ private:
         const auto& ll = l.link();
         const auto& rl = r.link();
         const auto& np = cfg_.fsm_pid.neutral;
-        fl[0] = l.len_control(ll.len_ + (cfg_.lmin - ll.len_) * 0.6f);
-        fr[0] = r.len_control(rl.len_ + (cfg_.lmin - rl.len_) * 0.6f);
+        fl[0] = l.len_control(ll.len_ + (cfg_.lmin - ll.len_) * 0.6f) - ll.fs_;
+        fr[0] = r.len_control(rl.len_ + (cfg_.lmin - rl.len_) * 0.6f) - rl.fs_;
         fl[1] = l.phi_control(k_pi * 0.5f, np.kp, np.kd, np.slope, ll.phi_ < k_pi * 0.45f);
         fr[1] = r.phi_control(k_pi * 0.5f, np.kp, np.kd, np.slope, rl.phi_ < k_pi * 0.45f);
         if (in.cmd.v > 0.005f)
@@ -321,8 +321,8 @@ private:
         }
 
         const float cmd_len = len_slope_.update_val(target_len_);
-        fl[0] = l.len_control(cmd_len + roll_pd_.result_) + cfg_.gff;
-        fr[0] = r.len_control(cmd_len - roll_pd_.result_) + cfg_.gff;
+        fl[0] = l.len_control(cmd_len + roll_pd_.result_) + cfg_.gff - ll.fs_;
+        fr[0] = r.len_control(cmd_len - roll_pd_.result_) + cfg_.gff - rl.fs_;
 
         if (++air_protect_cnt_ < 500)
         {
@@ -331,7 +331,7 @@ private:
         else
         {
             out.pendulum.normal = true;
-            len_slope_.set_path(0.00035f);
+            len_slope_.set_asymmetric(0.00035f, 0.0007f);
         }
 
         const bool offground =
@@ -431,8 +431,8 @@ private:
         roll_pd_.update_result(in.ins.gyro_r);
 
         const float cmd_len = len_slope_.update_val(in.cmd.len);
-        fl[0] = l.len_control(cmd_len + roll_pd_.result_) + cfg_.gff;
-        fr[0] = r.len_control(cmd_len - roll_pd_.result_) + cfg_.gff;
+        fl[0] = l.len_control(cmd_len + roll_pd_.result_) + cfg_.gff - ll.fs_;
+        fr[0] = r.len_control(cmd_len - roll_pd_.result_) + cfg_.gff - rl.fs_;
 
         if (!in.cmd.spin)
         {

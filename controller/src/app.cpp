@@ -176,7 +176,9 @@ void publish_ins(const control::imu_attitude_t* att, const control::msg_raw_stat
 
 void print_state_block(double time, const control::msg_ins_t& ins, const control::msg_raw_state_t& raw,
                        const control::link_solver& left, const control::link_solver& right,
-                       control::chassis_state fsm, float n_total, float x, float v, float az)
+                       const control::msg_ctrl_t& ctrl, const control::msg_motor_cmd_t& motor_cmd,
+                       const control::msg_cmd_t& cmd, control::chassis_state fsm, float n_total, float x,
+                       float v, float az)
 {
     std::printf("[t=%.3f] imu quat=(%.3f %.3f %.3f %.3f) rpy_rad=(%.4f %.4f %.4f) gyro=(%.3f %.3f %.3f) "
                 "accel=(%.3f %.3f %.3f)\n",
@@ -184,28 +186,30 @@ void print_state_block(double time, const control::msg_ins_t& ins, const control
                 ins.pitch, ins.yaw, ins.gyro_r, ins.gyro_p, ins.gyro_y, ins.accel[0], ins.accel[1],
                 ins.accel[2]);
 
-    auto motor = [&](const char* name, int i) {
+    auto print_motor = [&](const char* name, int i) {
         std::printf("  %s: q=%.4f dq=%.4f tau=%.4f\n", name, raw.motors[i].q, raw.motors[i].dq,
                     raw.motors[i].tau);
     };
-    auto link = [&](const char* tag, const control::link_solver& lk) {
+    auto link = [&](const char* tag, const control::link_solver& lk, const float f_cmd[2], int motor_base) {
         std::printf("  %s_link: len=%.4f dlen=%.4f phi=%.4f dphi=%.4f alpha=%.4f dalpha=%.4f alpha_eq=%.4f "
-                    "n=%.4f f=%.4f t_hip=%.4f total_phi=%.4f flat=%d neutral=%d\n",
-                    tag, lk.len_, lk.dlen_, lk.phi_, lk.dphi_, lk.alpha_, lk.dalpha_, lk.alpha_eq_, lk.n_,
-                    lk.freal_, lk.treal_hip_, lk.total_phi_, static_cast<int>(lk.flat_),
-                    static_cast<int>(lk.neutral_));
+                    "n=%.4f Fs=%.4f F=(%.4f,%.4f) tau=(%.4f,%.4f,%.4f) F_est=%.4f tau_hip_est=%.4f "
+                    "total_phi=%.4f flat=%d neutral=%d\n",
+                    tag, lk.len_, lk.dlen_, lk.phi_, lk.dphi_, lk.alpha_, lk.dalpha_, lk.alpha_eq_, lk.n_, lk.fs_,
+                    f_cmd[0], f_cmd[1], motor_cmd.tau[motor_base], motor_cmd.tau[motor_base + 1],
+                    motor_cmd.tau[motor_base + 2], lk.freal_, lk.treal_hip_, lk.total_phi_,
+                    static_cast<int>(lk.flat_), static_cast<int>(lk.neutral_));
     };
 
-    motor("ljoint1", 0);
-    motor("ljoint4", 1);
-    motor("lwheel", 2);
-    link("left", left);
-    motor("rjoint1", 3);
-    motor("rjoint4", 4);
-    motor("rwheel", 5);
-    link("right", right);
-    std::printf("  state: fsm=%d n_total=%.4f odom=(x=%.4f v=%.4f az=%.4f)\n", static_cast<int>(fsm), n_total,
-                x, v, az);
+    print_motor("ljoint1", 0);
+    print_motor("ljoint4", 1);
+    print_motor("lwheel", 2);
+    link("left", left, ctrl.Tl, 0);
+    print_motor("rjoint1", 3);
+    print_motor("rjoint4", 4);
+    print_motor("rwheel", 5);
+    link("right", right, ctrl.Tr, 3);
+    std::printf("  state: fsm=%d cmd.len=%.4f move=%d n_total=%.4f odom=(x=%.4f v=%.4f az=%.4f)\n",
+                static_cast<int>(fsm), cmd.len, static_cast<int>(cmd.move), n_total, x, v, az);
     std::fflush(stdout);
 }
 
@@ -419,7 +423,8 @@ void control_node::loop()
         if (log_every > 0 && ++log_counter >= log_every)
         {
             log_counter = 0;
-            print_state_block(raw.time, ins, raw, ll, rl, fsm.state(), fin.n_total, odom.x, odom.v, odom.az);
+            print_state_block(raw.time, ins, raw, ll, rl, fout.ctrl, fout.motor, cmd, fsm.state(), fin.n_total,
+                              odom.x, odom.v, odom.az);
         }
 
         sleep_until_tick(next, cfg_.control_hz);

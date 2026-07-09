@@ -62,6 +62,10 @@ struct chassis_config
     float thip_max = 40.0f;
     float twheel_max = 10.0f;
     float gff = 67.865f;
+    float fspring = 450.0f;
+    float dspring1 = 0.03f;
+    float dspring2 = 0.05f;
+    float ang_spring = 0.2164f;
     float alpha_eq_coeff[3] = {0.280918f, -1.101757f, 1.232768f};
     float imu_offset_x = 0.0f;
     float control_dt = 0.001f;
