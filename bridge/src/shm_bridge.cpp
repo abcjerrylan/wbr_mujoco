@@ -81,9 +81,9 @@ void shm_bridge::Step()
     const bool have_command = PullCommand(cmd_);
     if (have_command)
     {
-        adapter_->WriteCommand(cmd_);
+        adapter_->write_command(cmd_);
     }
-    adapter_->ReadState(state_);
+    adapter_->read_state(state_);
     PushState(state_);
 }
 

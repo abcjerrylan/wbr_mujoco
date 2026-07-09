@@ -10,7 +10,7 @@ namespace bridge
 namespace
 {
 
-void PrintLowState(const robot_msgs::LowState& state, const mujoco_interface::RobotConfig& config)
+void print_low_state(const robot_msgs::LowState& state, const mujoco_interface::robot_config& config)
 {
     std::printf("[t=%.3f] imu quat=(%.3f %.3f %.3f %.3f) gyro=(%.3f %.3f %.3f) accel=(%.3f %.3f %.3f)\n",
                 state.time, state.imu.quat[0], state.imu.quat[1], state.imu.quat[2], state.imu.quat[3],
@@ -23,11 +23,12 @@ void PrintLowState(const robot_msgs::LowState& state, const mujoco_interface::Ro
         const auto& m = state.motors[i];
         std::printf("  %s: q=%.4f dq=%.4f tau=%.4f\n", name, m.q, m.dq, m.tau_est);
     }
+    std::fflush(stdout);
 }
 
 }  // namespace
 
-bool app_control::Init(mujoco_interface::RobotInterface& robot, const std::string& config_path,
+bool app_control::init(mujoco_interface::robot_interface& robot, const std::string& config_path,
                        std::string& error)
 {
     robot_ = &robot;
@@ -49,7 +50,7 @@ bool app_control::Init(mujoco_interface::RobotInterface& robot, const std::strin
 
     if (print_state_hz_ > 0.0)
     {
-        const double dt = robot.SimTimestep();
+        const double dt = robot.sim_timestep();
         print_every_steps_ = dt > 0.0 ? std::max(1, static_cast<int>(std::lround(1.0 / (print_state_hz_ * dt))))
                                       : 1;
         std::printf("state print enabled: %.1f Hz (every %d sim steps)\n", print_state_hz_, print_every_steps_);
@@ -59,24 +60,24 @@ bool app_control::Init(mujoco_interface::RobotInterface& robot, const std::strin
     return true;
 }
 
-void app_control::Reset(mujoco_interface::RobotInterface& robot)
+void app_control::reset(mujoco_interface::robot_interface& robot)
 {
     (void)robot;
     step_counter_ = 0;
     bridge_.Reset();
 }
 
-void app_control::Step(mujoco_interface::RobotInterface& robot)
+void app_control::step(mujoco_interface::robot_interface& robot)
 {
     (void)robot;
     if (enabled_)
     {
         bridge_.Step();
-        MaybePrintState(robot);
+        maybe_print_state(robot);
     }
 }
 
-void app_control::MaybePrintState(const mujoco_interface::RobotInterface& robot)
+void app_control::maybe_print_state(const mujoco_interface::robot_interface& robot)
 {
     if (print_every_steps_ <= 0)
     {
@@ -90,8 +91,8 @@ void app_control::MaybePrintState(const mujoco_interface::RobotInterface& robot)
     }
 
     robot_msgs::LowState state{};
-    adapter_->ReadState(state);
-    PrintLowState(state, robot.config());
+    adapter_->read_state(state);
+    print_low_state(state, robot.config());
 }
 
 }  // namespace bridge

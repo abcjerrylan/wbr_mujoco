@@ -11,16 +11,16 @@ int main()
     const std::string config_path = "config/robots/wbr.yaml";
     std::string error;
 
-    mujoco_interface::RobotInterface robot;
-    mujoco_interface::RobotConfig config;
-    if (!mujoco_interface::LoadRobotConfig(config_path, config, error))
+    mujoco_interface::robot_interface robot;
+    mujoco_interface::robot_config config;
+    if (!mujoco_interface::load_robot_config(config_path, config, error))
     {
-        std::fprintf(stderr, "LoadRobotConfig failed: %s\n", error.c_str());
+        std::fprintf(stderr, "load_robot_config failed: %s\n", error.c_str());
         return 1;
     }
 
     const std::string scene =
-        mujoco_interface::ResolvePathRelativeToConfig(config_path, config.scene);
+        mujoco_interface::resolve_path(config_path, config.scene);
 
     char load_error[1024] = {};
     mjModel* model = mj_loadXML(scene.c_str(), nullptr, load_error, sizeof(load_error));
@@ -31,9 +31,9 @@ int main()
     }
 
     mjData* data = mj_makeData(model);
-    if (!robot.LoadConfig(config_path, error) || !robot.Bind(model, data, error))
+    if (!robot.load_config(config_path, error) || !robot.bind(model, data, error))
     {
-        std::fprintf(stderr, "Bind failed: %s\n", error.c_str());
+        std::fprintf(stderr, "bind failed: %s\n", error.c_str());
         mj_deleteData(data);
         mj_deleteModel(model);
         return 1;
@@ -41,9 +41,9 @@ int main()
 
     bridge::mj_adapter adapter{robot};
     robot_msgs::LowState state{};
-    adapter.ReadState(state);
+    adapter.read_state(state);
 
-    if (adapter.NumMotors() != 6 || state.num_motors != 6)
+    if (adapter.num_motors() != 6 || state.num_motors != 6)
     {
         std::fprintf(stderr, "adapter motor count mismatch\n");
         return 1;

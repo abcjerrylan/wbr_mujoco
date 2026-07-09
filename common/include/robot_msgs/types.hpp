@@ -1,7 +1,7 @@
 #pragma once
 
-// Wire layout matches mujoco_interface::RobotState / RobotCommand (see mujoco_interface/INTERFACE.md).
-// Keep in sync when kInterfaceVersion changes.
+// Wire layout matches mujoco_interface::robot_state / robot_command (see mujoco_interface/INTERFACE.md).
+// Keep in sync when k_interface_version changes.
 
 #include <cstdint>
 

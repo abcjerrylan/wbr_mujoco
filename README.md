@@ -10,11 +10,11 @@ MuJoCo stack and robot binding contract live in the separate submodule **[mujoco
 
 ```
 common/              robot_msgs (LowState/LowCmd) + robot_ipc (Shm) + msg (in-proc pub/sub)
-bridge/              mj_adapter, shm_bridge, app_control (ISimControl hook)
-sim/                 sim entry — registers app_control with RunSimulator()
+bridge/              mj_adapter, shm_bridge, app_control (sim_control hook)
+sim/                 sim entry — registers app_control with run_simulator()
 ctrl/                external controller — reads LowState, writes LowCmd over Shm
 config/ mjcf/        robot yaml + MJCF assets
-mujoco_interface/    submodule — RobotInterface, sim_rt viewer, mj_sim
+mujoco_interface/    submodule — robot_interface, sim_rt viewer, mj_sim
 tests/               test_import, test_adapter, test_shm
 ```
 
@@ -23,9 +23,9 @@ tests/               test_import, test_adapter, test_shm
 ```
 ctrl process                    sim process (physics thread)
     │  write LowCmd ───────────►│ PullCommand (Shm)
-    │                           │ WriteCommand → mj ctrl
+    │                           │ write_command → mj ctrl
     │                           │ mj_step()
-    │                           │ ReadState ← sensordata
+    │                           │ read_state ← sensordata
     │◄────── read LowState ─────│ PushState (Shm)
 ```
 

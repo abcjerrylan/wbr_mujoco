@@ -7,7 +7,7 @@
 namespace bridge
 {
 
-inline void ToRobotMsgs(const mujoco_interface::RobotState& src, robot_msgs::LowState& dst)
+inline void to_robot_msgs(const mujoco_interface::robot_state& src, robot_msgs::LowState& dst)
 {
     dst.num_motors = src.num_motors;
     dst.time = src.time;
@@ -28,10 +28,10 @@ inline void ToRobotMsgs(const mujoco_interface::RobotState& src, robot_msgs::Low
     }
 }
 
-inline void FromRobotMsgs(const robot_msgs::LowCmd& src, mujoco_interface::RobotCommand& dst)
+inline void from_robot_msgs(const robot_msgs::LowCmd& src, mujoco_interface::robot_command& dst)
 {
     dst.num_motors = src.num_motors;
-    for (std::uint32_t i = 0; i < src.num_motors && i < mujoco_interface::kMaxMotors; ++i)
+    for (std::uint32_t i = 0; i < src.num_motors && i < mujoco_interface::k_max_motors; ++i)
     {
         dst.motors[i].q = src.motors[i].q;
         dst.motors[i].dq = src.motors[i].dq;
@@ -45,26 +45,26 @@ inline void FromRobotMsgs(const robot_msgs::LowCmd& src, mujoco_interface::Robot
 class mj_adapter
 {
 public:
-    explicit mj_adapter(mujoco_interface::RobotInterface& robot) : robot_(&robot) {}
+    explicit mj_adapter(mujoco_interface::robot_interface& robot) : robot_(&robot) {}
 
-    void ReadState(robot_msgs::LowState& state) const
+    void read_state(robot_msgs::LowState& state) const
     {
-        mujoco_interface::RobotState native{};
-        robot_->ReadState(native);
-        ToRobotMsgs(native, state);
+        mujoco_interface::robot_state native{};
+        robot_->read_state(native);
+        to_robot_msgs(native, state);
     }
 
-    void WriteCommand(const robot_msgs::LowCmd& cmd)
+    void write_command(const robot_msgs::LowCmd& cmd)
     {
-        mujoco_interface::RobotCommand native{};
-        FromRobotMsgs(cmd, native);
-        robot_->WriteCommand(native);
+        mujoco_interface::robot_command native{};
+        from_robot_msgs(cmd, native);
+        robot_->write_command(native);
     }
 
-    [[nodiscard]] std::uint32_t NumMotors() const { return robot_->NumMotors(); }
+    [[nodiscard]] std::uint32_t num_motors() const { return robot_->num_motors(); }
 
 private:
-    mujoco_interface::RobotInterface* robot_ = nullptr;
+    mujoco_interface::robot_interface* robot_ = nullptr;
 };
 
 }  // namespace bridge

@@ -9,16 +9,28 @@
 namespace
 {
 
-void ApplyCliOverrides(int argc, char** argv, bridge::app_control& control)
+void apply_cli_overrides(int argc, char** argv, bridge::app_control& control)
 {
+    bool has_robot_config = false;
+    bool print_state_set = false;
+
     for (int i = 1; i < argc; ++i)
     {
-        if (std::strcmp(argv[i], "--ipc-prefix") == 0 && i + 1 < argc)
+        if (std::strcmp(argv[i], "-c") == 0 || std::strcmp(argv[i], "--config") == 0)
         {
-            control.SetIpcPrefixOverride(argv[++i]);
+            if (i + 1 < argc)
+            {
+                has_robot_config = true;
+                ++i;
+            }
+        }
+        else if (std::strcmp(argv[i], "--ipc-prefix") == 0 && i + 1 < argc)
+        {
+            control.set_ipc_prefix_override(argv[++i]);
         }
         else if (std::strcmp(argv[i], "--print-state") == 0)
         {
+            print_state_set = true;
             double hz = 5.0;
             if (i + 1 < argc && argv[i + 1][0] != '-')
             {
@@ -30,14 +42,26 @@ void ApplyCliOverrides(int argc, char** argv, bridge::app_control& control)
                     ++i;
                 }
             }
-            control.SetPrintStateHz(hz);
+            control.set_print_state_hz(hz);
+        }
+        else if (std::strcmp(argv[i], "--no-print-state") == 0)
+        {
+            print_state_set = true;
+            control.set_print_state_hz(0.0);
         }
         else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0)
         {
-            std::printf("Usage: sim [mujoco options] [--ipc-prefix NAME] [--print-state [HZ]]\n");
-            std::printf("  --print-state [HZ]  print LowState to stdout (default 5 Hz)\n");
+            std::printf("Usage: sim [mujoco options] [--ipc-prefix NAME] [--print-state [HZ]] [--no-print-state]\n");
+            std::printf("  With -c/--config, LowState is printed at 5 Hz by default.\n");
+            std::printf("  --print-state [HZ]  override print rate (default 5 Hz)\n");
+            std::printf("  --no-print-state    disable state printing\n");
             std::exit(0);
         }
+    }
+
+    if (has_robot_config && !print_state_set)
+    {
+        control.set_print_state_hz(5.0);
     }
 }
 
@@ -46,6 +70,6 @@ void ApplyCliOverrides(int argc, char** argv, bridge::app_control& control)
 int main(int argc, char** argv)
 {
     bridge::app_control control;
-    ApplyCliOverrides(argc, argv, control);
-    return mujoco_interface::RunSimulator(argc, argv, &control);
+    apply_cli_overrides(argc, argv, control);
+    return mujoco_interface::run_simulator(argc, argv, &control);
 }

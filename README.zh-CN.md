@@ -10,11 +10,11 @@ MuJoCo 栈与机器人绑定契约在独立子模块 **[mujoco_interface](mujoco
 
 ```
 common/              robot_msgs（LowState/LowCmd）+ robot_ipc（Shm）+ msg（进程内 pub/sub）
-bridge/              mj_adapter、shm_bridge、app_control（ISimControl 钩子）
-sim/                 sim 入口 — 向 RunSimulator() 注册 app_control
+bridge/              mj_adapter、shm_bridge、app_control（sim_control 钩子）
+sim/                 sim 入口 — 向 run_simulator() 注册 app_control
 ctrl/                外部控制器 — 读 LowState、写 LowCmd（Shm）
 config/ mjcf/        机器人 yaml + MJCF 资源
-mujoco_interface/    子模块 — RobotInterface、sim_rt viewer、mj_sim
+mujoco_interface/    子模块 — robot_interface、sim_rt viewer、mj_sim
 tests/               test_import、test_adapter、test_shm
 ```
 
@@ -23,9 +23,9 @@ tests/               test_import、test_adapter、test_shm
 ```
 ctrl 进程                       sim 进程（physics 线程）
     │  write LowCmd ───────────►│ PullCommand（Shm）
-    │                           │ WriteCommand → mj ctrl
+    │                           │ write_command → mj ctrl
     │                           │ mj_step()
-    │                           │ ReadState ← sensordata
+    │                           │ read_state ← sensordata
     │◄────── read LowState ─────│ PushState（Shm）
 ```
 

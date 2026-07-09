@@ -11,22 +11,22 @@
 namespace bridge
 {
 
-class app_control : public mujoco_interface::ISimControl
+class app_control : public mujoco_interface::sim_control
 {
 public:
-    void SetIpcPrefixOverride(std::string prefix) { ipc_prefix_override_ = std::move(prefix); }
-    void SetPrintStateHz(double hz) { print_state_hz_ = hz; }
+    void set_ipc_prefix_override(std::string prefix) { ipc_prefix_override_ = std::move(prefix); }
+    void set_print_state_hz(double hz) { print_state_hz_ = hz; }
 
-    bool Init(mujoco_interface::RobotInterface& robot, const std::string& config_path,
+    bool init(mujoco_interface::robot_interface& robot, const std::string& config_path,
               std::string& error) override;
-    void Reset(mujoco_interface::RobotInterface& robot) override;
-    void Step(mujoco_interface::RobotInterface& robot) override;
+    void reset(mujoco_interface::robot_interface& robot) override;
+    void step(mujoco_interface::robot_interface& robot) override;
     [[nodiscard]] bool enabled() const override { return enabled_; }
 
 private:
-    void MaybePrintState(const mujoco_interface::RobotInterface& robot);
+    void maybe_print_state(const mujoco_interface::robot_interface& robot);
 
-    mujoco_interface::RobotInterface* robot_ = nullptr;
+    mujoco_interface::robot_interface* robot_ = nullptr;
     std::unique_ptr<mj_adapter> adapter_;
     shm_bridge bridge_;
     sim_opts options_{};
