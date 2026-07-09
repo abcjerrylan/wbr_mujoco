@@ -3,6 +3,8 @@ robot: wbr
 scene: ../../mjcf/scene.xml
 ipc_prefix: wbr
 
+timestep: 0.001
+
 imu:
   quat: imu_quat
   gyro: imu_gyro
@@ -53,3 +55,9 @@ motors:
 
 control:
   decimation: 1
+  force_relax: true
+
+logger:
+  # stdout: block prints IMU + motors + link_solver (angles in rad)
+  hz: 5
+  stdout: block

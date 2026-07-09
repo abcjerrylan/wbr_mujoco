@@ -10,9 +10,9 @@ MuJoCo stack and robot binding contract live in the separate submodule **[mujoco
 
 ```
 common/              robot_msgs (LowState/LowCmd) + robot_ipc (Shm) + msg (in-proc pub/sub)
+controller/          control core (VMC/LQR/FSM/EKF) + 4-thread ctrl process
 bridge/              mj_adapter, shm_bridge, app_control (sim::control hook)
 sim/                 sim entry — registers app_control, calls sim::run()
-ctrl/                external controller — reads LowState, writes LowCmd over Shm
 config/ mjcf/        robot yaml + MJCF assets
 mujoco_interface/    submodule — robot::, input::, sim_rt (libs + sim::run API)
 tests/               test_import, test_adapter, test_shm
@@ -66,6 +66,7 @@ cmake -B build && cmake --build build
 ./build/sim -c config/robots/wbr.yaml
 
 # Terminal 2 — external controller (optional)
+./build/sim -c config/robots/wbr.yaml --forward-input
 ./build/ctrl --ipc-prefix wbr
 ```
 

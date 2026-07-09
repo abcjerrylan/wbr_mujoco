@@ -1,16 +1,39 @@
 #include "bridge/app_control.hpp"
 
 #include "mujoco_interface/input_hub.hpp"
+#include <robot_ipc/channel.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 
 namespace bridge
 {
 
 namespace
 {
+
+void publish_input_shm(const mujoco_interface::input::snapshot& input,
+                       robot_ipc::ShmChannel<bridge::input_shm_t>& channel)
+{
+    if (!channel.valid())
+    {
+        return;
+    }
+    namespace in = mujoco_interface::input;
+    bridge::input_shm_t msg{};
+    msg.w = input.keyboard.is_down(in::key::w) ? 1 : 0;
+    msg.s = input.keyboard.is_down(in::key::s) ? 1 : 0;
+    msg.a = input.keyboard.is_down(in::key::a) ? 1 : 0;
+    msg.d = input.keyboard.is_down(in::key::d) ? 1 : 0;
+    msg.q = input.keyboard.is_down(in::key::q) ? 1 : 0;
+    msg.e = input.keyboard.is_down(in::key::e) ? 1 : 0;
+    msg.space = input.keyboard.is_down(in::key::space) ? 1 : 0;
+    msg.r = input.keyboard.is_down(in::key::r) ? 1 : 0;
+    msg.f = input.keyboard.is_down(in::key::f) ? 1 : 0;
+    channel.write(msg);
+}
 
 void print_low_state(const robot_msgs::LowState& state, const mujoco_interface::robot::config& config)
 {
@@ -98,8 +121,23 @@ bool app_control::init(mujoco_interface::robot::interface& robot, const std::str
         return false;
     }
 
-    mujoco_interface::input::hub::instance().capture_control_keys();
-    std::printf("keyboard trial: W/A/S/D -> ljoint1/ljoint4/rjoint1/rjoint4 (2 Nm); 2/3/4 = viewer lighting\n");
+    if (forward_input_)
+    {
+        input_out_ = robot_ipc::ShmChannel<bridge::input_shm_t>::open_server(prefix + "_input");
+        if (!input_out_.valid())
+        {
+            error = "failed to open input shm channel";
+            enabled_ = false;
+            return false;
+        }
+        std::printf("input forwarding enabled on /%s_input\n", prefix.c_str());
+    }
+
+    if (keyboard_trial_)
+    {
+        mujoco_interface::input::hub::instance().capture_control_keys();
+        std::printf("keyboard trial: W/A/S/D -> leg joints (2 Nm)\n");
+    }
 
     if (print_state_hz_ > 0.0)
     {
@@ -126,7 +164,14 @@ void app_control::step(mujoco_interface::robot::interface& robot,
     if (enabled_)
     {
         bridge_.Step();
-        apply_keyboard_joint_trial(input, *adapter_, robot.num_motors());
+        if (forward_input_)
+        {
+            publish_input_shm(input, input_out_);
+        }
+        if (keyboard_trial_)
+        {
+            apply_keyboard_joint_trial(input, *adapter_, robot.num_motors());
+        }
         maybe_print_state(robot);
     }
 }

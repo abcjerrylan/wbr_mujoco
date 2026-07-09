@@ -106,6 +106,18 @@ subscriber subscribe()
 status publish(const topic* topic, const void* data, std::size_t size, publish_opts opts = {});
 
 template <typename T>
+status publish(const T& data, publish_opts opts = {})
+{
+    static_assert(std::is_trivially_copyable_v<T>, "msg payload must be trivially copyable");
+    topic* topic = create<T>();
+    if (topic == nullptr)
+    {
+        return status::error;
+    }
+    return publish(topic, data, opts);
+}
+
+template <typename T>
 status publish(const topic* topic, const T& data, publish_opts opts = {})
 {
     static_assert(std::is_trivially_copyable_v<T>, "msg payload must be trivially copyable");

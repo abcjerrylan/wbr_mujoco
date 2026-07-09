@@ -26,6 +26,9 @@ add_library(robot_ipc INTERFACE)
 target_include_directories(robot_ipc INTERFACE common/include)
 target_link_libraries(robot_ipc INTERFACE robot_msgs rt pthread)
 
+add_library(control_core INTERFACE)
+target_include_directories(control_core INTERFACE controller/include)
+
 # --- mujoco_interface (submodule / nested repo) ---
 add_subdirectory(mujoco_interface)
 
@@ -50,8 +53,21 @@ set_target_properties(sim PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
-add_executable(ctrl ctrl/src/main.cpp)
-target_link_libraries(ctrl PRIVATE robot_ipc robot_msgs Threads::Threads)
+# --- controller ---
+add_executable(ctrl
+  controller/src/main.cpp
+  controller/src/app.cpp
+  controller/src/config.cpp
+)
+target_include_directories(ctrl PRIVATE controller/include)
+target_link_libraries(ctrl PRIVATE
+  control_core
+  msg
+  robot_ipc
+  robot_msgs
+  yaml-cpp
+  Threads::Threads
+)
 set_target_properties(ctrl PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )

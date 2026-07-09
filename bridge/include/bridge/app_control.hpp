@@ -1,9 +1,11 @@
 #pragma once
 
 #include "mujoco_interface/sim_control.hpp"
+#include "bridge/input_shm.hpp"
 #include "bridge/mj_adapter.hpp"
 #include "bridge/shm_bridge.hpp"
 #include "bridge/sim_config.hpp"
+#include <robot_ipc/channel.hpp>
 
 #include <memory>
 #include <string>
@@ -16,6 +18,8 @@ class app_control : public mujoco_interface::sim::control
 public:
     void set_ipc_prefix_override(std::string prefix) { ipc_prefix_override_ = std::move(prefix); }
     void set_print_state_hz(double hz) { print_state_hz_ = hz; }
+    void set_forward_input(bool enabled) { forward_input_ = enabled; }
+    void set_keyboard_trial(bool enabled) { keyboard_trial_ = enabled; }
 
     bool init(mujoco_interface::robot::interface& robot, const std::string& config_path,
               std::string& error) override;
@@ -36,6 +40,9 @@ private:
     int print_every_steps_ = 0;
     int step_counter_ = 0;
     bool enabled_ = false;
+    bool forward_input_ = false;
+    bool keyboard_trial_ = false;
+    robot_ipc::ShmChannel<bridge::input_shm_t> input_out_;
 };
 
 }  // namespace bridge
