@@ -208,8 +208,9 @@ void print_state_block(double time, const control::msg_ins_t& ins, const control
     print_motor("rjoint4", 4);
     print_motor("rwheel", 5);
     link("right", right, ctrl.Tr, 3);
-    std::printf("  state: fsm=%d cmd.len=%.4f move=%d n_total=%.4f odom=(x=%.4f v=%.4f az=%.4f)\n",
-                static_cast<int>(fsm), cmd.len, static_cast<int>(cmd.move), n_total, x, v, az);
+    std::printf("  state: fsm=%d cmd.len=%.4f cmd.v=%.4f Tw=(%.4f,%.4f) move=%d n_total=%.4f odom=(x=%.4f v=%.4f az=%.4f)\n",
+                static_cast<int>(fsm), cmd.len, cmd.v, ctrl.Twl, ctrl.Twr, static_cast<int>(cmd.move), n_total,
+                x, v, az);
     std::fflush(stdout);
 }
 

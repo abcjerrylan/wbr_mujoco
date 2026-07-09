@@ -47,6 +47,8 @@ public:
         air_protect_cnt_ = 0;
         flipover_cnt_ = 0;
         landing_cnt_ = 0;
+        normal_enter_cnt_ = 0;
+        normal_exit_cnt_ = 0;
         flying_ = false;
         going_stair_ = false;
         target_len_ = cfg_.lmin;
@@ -270,13 +272,23 @@ private:
         {
             twl = twr = -1.5f;
         }
-        if (ll.neutral_ && rl.neutral_)
+        if (std::fabs(ll.alpha_) < cfg_.fsm.enter_normal_alpha &&
+            std::fabs(rl.alpha_) < cfg_.fsm.enter_normal_alpha)
         {
-            state_ = chassis_state::normal;
-            l.delta_init_ = false;
-            r.delta_init_ = false;
-            target_len_ = cfg_.lmin;
-            len_slope_.set_default(ll.len_);
+            if (++normal_enter_cnt_ >= cfg_.fsm.enter_normal_ticks)
+            {
+                state_ = chassis_state::normal;
+                l.delta_init_ = false;
+                r.delta_init_ = false;
+                target_len_ = cfg_.lmin;
+                len_slope_.set_default(ll.len_);
+                normal_enter_cnt_ = 0;
+                normal_exit_cnt_ = 0;
+            }
+        }
+        else
+        {
+            normal_enter_cnt_ = 0;
         }
     }
 
@@ -301,10 +313,11 @@ private:
 
         lqr_.mode = ((ll.len_ + rl.len_) * 0.5f > cfg_.lswitch) ? lqr_mode::high : lqr_mode::low;
         lqr_.update(ll.len_, rl.len_, ref_x_, in.observed_x, cfg_);
-        twl = lqr_.tout[0];
-        twr = lqr_.tout[1];
-        fl[1] = lqr_.tout[2];
-        fr[1] = lqr_.tout[3];
+        const float lqr_blend = std::min(1.0f, static_cast<float>(air_protect_cnt_) / 400.0f);
+        twl = lqr_.tout[0] * lqr_blend;
+        twr = lqr_.tout[1] * lqr_blend;
+        fl[1] = lqr_.tout[2] * lqr_blend;
+        fr[1] = lqr_.tout[3] * lqr_blend;
 
         roll_pd_.ref = 0.0f;
         roll_pd_.fdb = in.ins.roll;
@@ -334,19 +347,28 @@ private:
             len_slope_.set_asymmetric(0.00035f, 0.0007f);
         }
 
-        const bool offground =
-            (in.n_total < 0.0f) && (ll.dlen_ > 0.05f) && (rl.dlen_ > 0.05f) && (air_protect_cnt_ > 500);
+        const auto& guards = cfg_.fsm;
+        const bool offground = (in.n_total < 0.0f) && (ll.dlen_ > 0.05f) && (rl.dlen_ > 0.05f) &&
+                               (air_protect_cnt_ > guards.offground_min_air_ticks);
         if (offground)
         {
             state_ = chassis_state::offground;
             landing_cnt_ = 0;
         }
 
-        if (ll.alpha_ >= 0.8f || rl.alpha_ >= 0.8f)
+        if (ll.alpha_ >= guards.exit_relax_alpha || rl.alpha_ >= guards.exit_relax_alpha)
         {
-            state_ = chassis_state::relax;
-            l.delta_init_ = false;
-            r.delta_init_ = false;
+            if (++normal_exit_cnt_ >= guards.exit_relax_ticks)
+            {
+                state_ = chassis_state::relax;
+                l.delta_init_ = false;
+                r.delta_init_ = false;
+                normal_exit_cnt_ = 0;
+            }
+        }
+        else
+        {
+            normal_exit_cnt_ = 0;
         }
 
         const auto& lb = cfg_.fsm_pid.len_balance;
@@ -380,24 +402,33 @@ private:
         fr[1] = lqr_.tout[3] * 0.4f;
         fl[0] = fr[0] = 0.0f;
 
+        const auto& guards = cfg_.fsm;
         const bool landing = flying_ ? (ll.dlen_ < -0.05f && rl.dlen_ < -0.05f && ++landing_cnt_ > 100)
                                      : (ll.dlen_ < 0.0f && rl.dlen_ < 0.0f);
 
-        if (ll.alpha_ >= 0.8f || rl.alpha_ >= 0.8f)
+        if (ll.alpha_ >= guards.exit_relax_alpha || rl.alpha_ >= guards.exit_relax_alpha)
         {
-            state_ = chassis_state::relax;
-            l.delta_init_ = false;
-            r.delta_init_ = false;
+            if (++normal_exit_cnt_ >= guards.exit_relax_ticks)
+            {
+                state_ = chassis_state::relax;
+                l.delta_init_ = false;
+                r.delta_init_ = false;
+                normal_exit_cnt_ = 0;
+            }
         }
-        else if (landing)
+        else
         {
-            landing_cnt_ = 0;
-            air_protect_cnt_ = 0;
-            state_ = chassis_state::normal;
-            target_len_ = cfg_.lmin;
-            len_slope_.set_default(ll.len_);
-            len_slope_.set_path(flying_ ? 0.0006f : 0.0009f);
-            flying_ = false;
+            normal_exit_cnt_ = 0;
+            if (landing)
+            {
+                landing_cnt_ = 0;
+                air_protect_cnt_ = 0;
+                state_ = chassis_state::normal;
+                target_len_ = cfg_.lmin;
+                len_slope_.set_default(ll.len_);
+                len_slope_.set_path(flying_ ? 0.0006f : 0.0009f);
+                flying_ = false;
+            }
         }
     }
 
@@ -454,6 +485,8 @@ private:
     std::uint32_t air_protect_cnt_ = 0;
     std::uint32_t flipover_cnt_ = 0;
     std::uint32_t landing_cnt_ = 0;
+    std::uint32_t normal_enter_cnt_ = 0;
+    std::uint32_t normal_exit_cnt_ = 0;
     bool flying_ = false;
     bool going_stair_ = false;
 };

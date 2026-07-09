@@ -88,6 +88,34 @@ void parse_phi_state_pid(const YAML::Node& node, control::phi_state_pid& params)
     }
 }
 
+void parse_fsm_guards(const YAML::Node& node, control::fsm_guards& guards)
+{
+    if (!node)
+    {
+        return;
+    }
+    if (node["enter_normal_alpha"])
+    {
+        guards.enter_normal_alpha = node["enter_normal_alpha"].as<float>();
+    }
+    if (node["enter_normal_ticks"])
+    {
+        guards.enter_normal_ticks = node["enter_normal_ticks"].as<std::uint32_t>();
+    }
+    if (node["exit_relax_alpha"])
+    {
+        guards.exit_relax_alpha = node["exit_relax_alpha"].as<float>();
+    }
+    if (node["exit_relax_ticks"])
+    {
+        guards.exit_relax_ticks = node["exit_relax_ticks"].as<std::uint32_t>();
+    }
+    if (node["offground_min_air_ticks"])
+    {
+        guards.offground_min_air_ticks = node["offground_min_air_ticks"].as<std::uint32_t>();
+    }
+}
+
 void parse_pid_config(const YAML::Node& pid_node, control::chassis_config& chassis)
 {
     if (!pid_node)
@@ -221,6 +249,10 @@ bool load_yaml(const std::string& path, app_config& cfg, std::string& error)
         if (control_node && control_node["pid"])
         {
             parse_pid_config(control_node["pid"], cfg.chassis);
+        }
+        if (control_node && control_node["fsm"])
+        {
+            parse_fsm_guards(control_node["fsm"], cfg.chassis.fsm);
         }
 
         const YAML::Node log_node = root["logger"];

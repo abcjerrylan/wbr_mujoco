@@ -40,8 +40,7 @@
           <geom type="mesh" rgba="1 1 1 1" mesh="llink1_child1"/>
           <body name="lwlink" pos="0.233282 0.05495 -0.100477">
             <inertial pos="0.0001294144 -0.01560784 1.511712E-05" mass="0.248106367527013" fullinertia="0.0002156902 0.0003872389 0.0002149108 2.415911E-07 2.294135E-08 6.096467E-09"/>
-            <joint name="lwheel" pos="0 0 0" axis="0 -1 0" range="-3.1416 3.1416"
-              damping="0.02" frictionloss="0.19" armature="0.031" actuatorfrcrange="-5.2 5.2"/>
+            <joint name="lwheel" pos="0 0 0" axis="0 -1 0" damping="0.02" frictionloss="0.19" armature="0.031" actuatorfrcrange="-5.2 5.2"/>
             <geom type="mesh" rgba="0.792157 0.819608 0.933333 1" mesh="lwlink" friction="0.8 0.005 0.0001"/>
           </body>
         </body>
@@ -83,8 +82,7 @@
           <geom type="mesh" rgba="1 1 1 1" mesh="rlink1_child1"/>
           <body name="rwlink" pos="0.233282 -0.02945 -0.100477">
             <inertial pos="0.0001294142 0.01560784 1.511721E-05" mass="0.248106347100355" fullinertia="0.0002156902 0.0003872389 0.0002149108 -2.415902E-07 2.294301E-08 -6.098415E-09"/>
-            <joint name="rwheel" pos="0 0 0" axis="0 1 0" range="-3.1416 3.1416"
-              damping="0.02" frictionloss="0.19" armature="0.031" actuatorfrcrange="-5.2 5.2"/>
+            <joint name="rwheel" pos="0 0 0" axis="0 1 0" damping="0.02" frictionloss="0.19" armature="0.031" actuatorfrcrange="-5.2 5.2"/>
             <geom type="mesh" rgba="1 1 1 1" mesh="rwlink" friction="0.8 0.005 0.0001"/>
           </body>
         </body>

@@ -183,7 +183,7 @@ public:
                          len_ * ddalpha * sin_alpha + len_ * dalpha_ * dalpha_ * cos_alpha;
         n_ = p + cfg_.mwheel * k_gravity + cfg_.mwheel * zw;
 
-        neutral_ = std::fabs(alpha_) < 0.5f;
+        neutral_ = std::fabs(alpha_) < 0.6f;
         flat_ = (phi_ >= 2.0f && phi_ <= 3.1f);
         prev_dlen_ = dlen_;
         prev_dalpha_ = dalpha_;

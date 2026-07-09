@@ -64,6 +64,14 @@ control:
       high_phi: { kp: 10, kd: 5, slope: 0.01 }
       low_phi: { kp: 5, kd: 10, slope: 0.002 }
     neutral: { kp: 30, kd: 10, slope: 0.003 }
+  fsm:
+    # looser than |alpha|<0.5 link flag; sustain enter_normal_ticks before NORMAL
+    enter_normal_alpha: 0.58
+    enter_normal_ticks: 8
+    # debounced RELAX exit (was immediate alpha>=0.8)
+    exit_relax_alpha: 1.05
+    exit_relax_ticks: 250
+    offground_min_air_ticks: 800
 
 logger:
   # stdout: block prints IMU + motors + link_solver (angles in rad)

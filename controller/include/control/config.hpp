@@ -47,6 +47,18 @@ struct fsm_pid_config
     phi_state_pid neutral{30.0f, 10.0f, 0.003f};
 };
 
+struct fsm_guards
+{
+    // |alpha| below this for enter_normal_ticks -> NEUTRAL to NORMAL (default looser than link neutral_=0.5)
+    float enter_normal_alpha = 0.58f;
+    std::uint32_t enter_normal_ticks = 8;
+    // Sustained alpha above this for exit_relax_ticks -> NORMAL to RELAX
+    float exit_relax_alpha = 1.05f;
+    std::uint32_t exit_relax_ticks = 250;
+    // Off-ground detection only after this many NORMAL ticks (startup grace)
+    std::uint32_t offground_min_air_ticks = 800;
+};
+
 struct chassis_config
 {
     float l1 = 0.220f;
@@ -72,6 +84,7 @@ struct chassis_config
     bool force_relax = false;
     leg_pid_config leg_pid{};
     fsm_pid_config fsm_pid{};
+    fsm_guards fsm{};
 
     // Motor mechanical zero offsets (rad), indexed like msg_raw_state_t::motors[]
     // Order: 0 ljoint1, 1 ljoint4, 2 lwheel, 3 rjoint1, 4 rjoint4, 5 rwheel
