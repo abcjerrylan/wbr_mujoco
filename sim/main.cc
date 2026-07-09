@@ -71,5 +71,5 @@ int main(int argc, char** argv)
 {
     bridge::app_control control;
     apply_cli_overrides(argc, argv, control);
-    return mujoco_interface::run_simulator(argc, argv, &control);
+    return mujoco_interface::sim::run(argc, argv, &control);
 }

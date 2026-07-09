@@ -1,4 +1,4 @@
-// Import test: load application robot YAML + MJCF, bind robot_interface, read state.
+// Import test: load application robot YAML + MJCF, bind robot::interface, read state.
 // Run from wbr_mujoco repo root:
 //   ./build/test_import
 //   ./build/test_import config/robots/wbr.yaml
@@ -17,15 +17,15 @@ int main(int argc, char** argv)
     const std::string config_path = (argc > 1) ? argv[1] : "config/robots/wbr.yaml";
     std::string error;
 
-    mujoco_interface::robot_config config;
-    if (!mujoco_interface::load_robot_config(config_path, config, error))
+    mujoco_interface::robot::config config;
+    if (!mujoco_interface::robot::load_config(config_path, config, error))
     {
-        std::fprintf(stderr, "load_robot_config failed: %s\n", error.c_str());
+        std::fprintf(stderr, "load_config failed: %s\n", error.c_str());
         return 1;
     }
 
     const std::string scene =
-        mujoco_interface::resolve_path(config_path, config.scene);
+        mujoco_interface::robot::resolve_path(config_path, config.scene);
 
     char load_error[1024] = {};
     mjModel* model = mj_loadXML(scene.c_str(), nullptr, load_error, sizeof(load_error));
@@ -36,7 +36,7 @@ int main(int argc, char** argv)
     }
 
     mjData* data = mj_makeData(model);
-    mujoco_interface::robot_interface robot;
+    mujoco_interface::robot::interface robot;
     if (!robot.load_config(config_path, error) || !robot.bind(model, data, error))
     {
         std::fprintf(stderr, "bind failed: %s\n", error.c_str());
@@ -52,7 +52,7 @@ int main(int argc, char** argv)
     }
     mj_forward(model, data);
 
-    mujoco_interface::robot_state state{};
+    mujoco_interface::robot::state state{};
     robot.read_state(state);
 
     std::printf("test_import ok\n");
