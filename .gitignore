@@ -5,3 +5,7 @@ mujoco
 
 build/
 __pycache__/
+
+sim.log
+MUJOCO_LOG.TXT
+*.log

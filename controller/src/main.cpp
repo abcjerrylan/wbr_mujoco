@@ -37,8 +37,13 @@ int main(int argc, char** argv)
     std::signal(SIGINT, handle_signal);
     std::signal(SIGTERM, handle_signal);
 
-    std::printf("ctrl started (ipc=%s, imu_mode=%d). Ctrl+C to exit.\n", cfg.ipc_prefix.c_str(),
+    std::printf("ctrl started (topic_ns=%s, imu_mode=%d", cfg.ipc_prefix.c_str(),
                 static_cast<int>(cfg.imu_mode));
+    if (cfg.logger.stdout_block && cfg.logger.hz > 0.0f)
+    {
+        std::printf(", log=%.1fHz", cfg.logger.hz);
+    }
+    std::printf("). Focus sim window for keyboard. Ctrl+C to exit.\n");
     app.run();
     return 0;
 }

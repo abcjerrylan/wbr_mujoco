@@ -13,6 +13,12 @@ namespace controller
 namespace
 {
 
+bool file_exists(const std::string& path)
+{
+    std::ifstream file(path);
+    return file.good();
+}
+
 std::string find_config_path(int argc, char** argv)
 {
     for (int i = 1; i < argc; ++i)
@@ -22,13 +28,20 @@ std::string find_config_path(int argc, char** argv)
             return argv[i + 1];
         }
     }
-    return "config/robots/wbr.yaml";
-}
 
-bool file_exists(const std::string& path)
-{
-    std::ifstream file(path);
-    return file.good();
+    const char* candidates[] = {
+        "config/robots/wbr.yaml",
+        "../config/robots/wbr.yaml",
+        "../../config/robots/wbr.yaml",
+    };
+    for (const char* candidate : candidates)
+    {
+        if (file_exists(candidate))
+        {
+            return candidate;
+        }
+    }
+    return "config/robots/wbr.yaml";
 }
 
 control::pid_mode parse_pid_mode(const std::string& mode)
@@ -294,6 +307,13 @@ app_config load_config(int argc, char** argv)
             std::fprintf(stderr, "failed to load config %s: %s\n", config_path.c_str(), error.c_str());
             std::exit(1);
         }
+    }
+    else
+    {
+        std::fprintf(stderr,
+                     "warning: config not found (%s); using defaults (logger off). "
+                     "Run from repo root or pass -c config/robots/wbr.yaml\n",
+                     config_path.c_str());
     }
 
     parse_args(argc, argv, cfg);

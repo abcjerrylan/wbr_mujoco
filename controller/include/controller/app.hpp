@@ -11,41 +11,36 @@
 namespace controller
 {
 
-class shm_io;
+class ecal_io;
 
 class output_node
 {
 public:
-    output_node(const app_config& cfg, shm_io& io, std::atomic<bool>& running);
+    output_node(const app_config& cfg, ecal_io& io, std::atomic<bool>& running);
     ~output_node();
-
-    output_node(const output_node&) = delete;
-    output_node& operator=(const output_node&) = delete;
 
 private:
     void loop();
 
     const app_config& cfg_;
-    shm_io& io_;
+    ecal_io& io_;
     std::atomic<bool>& running_;
     std::thread thread_;
     msg::subscriber sub_motor_cmd_ = msg::subscribe<control::msg_motor_cmd_t>();
+    control::msg_motor_cmd_t motor_cmd_{};
 };
 
 class imu_node
 {
 public:
-    imu_node(const app_config& cfg, shm_io& io, std::atomic<bool>& running);
+    imu_node(const app_config& cfg, ecal_io& io, std::atomic<bool>& running);
     ~imu_node();
-
-    imu_node(const imu_node&) = delete;
-    imu_node& operator=(const imu_node&) = delete;
 
 private:
     void loop();
 
     const app_config& cfg_;
-    shm_io& io_;
+    ecal_io& io_;
     std::atomic<bool>& running_;
     std::thread thread_;
     msg::subscriber sub_raw_state_ = msg::subscribe<control::msg_raw_state_t>();
@@ -54,21 +49,19 @@ private:
 class cmd_node
 {
 public:
-    cmd_node(const app_config& cfg, shm_io& io, std::atomic<bool>& running);
+    cmd_node(const app_config& cfg, std::atomic<bool>& running);
     ~cmd_node();
-
-    cmd_node(const cmd_node&) = delete;
-    cmd_node& operator=(const cmd_node&) = delete;
 
 private:
     void loop();
 
     const app_config& cfg_;
-    shm_io& io_;
     std::atomic<bool>& running_;
     std::thread thread_;
     msg::subscriber sub_pendulum_ = msg::subscribe<control::msg_pendulum_t>();
     msg::subscriber sub_ins_ = msg::subscribe<control::msg_ins_t>();
+    msg::subscriber sub_input_ = msg::subscribe<control::input_snapshot_t>();
+    control::input_snapshot_t input_{};
 };
 
 class control_node
@@ -76,9 +69,6 @@ class control_node
 public:
     control_node(const app_config& cfg, std::atomic<bool>& running);
     ~control_node();
-
-    control_node(const control_node&) = delete;
-    control_node& operator=(const control_node&) = delete;
 
 private:
     void loop();
@@ -102,7 +92,7 @@ public:
 private:
     app_config cfg_;
     std::atomic<bool> running_{true};
-    std::unique_ptr<shm_io> io_;
+    std::unique_ptr<ecal_io> io_;
     output_node output_;
     imu_node imu_;
     cmd_node cmd_;

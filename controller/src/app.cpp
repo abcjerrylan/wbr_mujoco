@@ -1,4 +1,5 @@
 #include "controller/app.hpp"
+#include "controller/ecal_io.hpp"
 
 #include "control/balance.hpp"
 #include "control/chassis_fsm.hpp"
@@ -6,130 +7,15 @@
 #include "control/math.hpp"
 
 #include "msg/msg.hpp"
-#include "robot_ipc/channel.hpp"
-#include "robot_ipc/input_shm.hpp"
-#include "robot_msgs/types.hpp"
 
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <random>
 #include <thread>
 
 namespace controller
 {
-
-class shm_io
-{
-public:
-    explicit shm_io(const app_config& cfg) { init(cfg); }
-
-    bool valid() const { return state_in_.valid() && cmd_out_.valid(); }
-
-    bool read_low_state(robot_msgs::LowState& state)
-    {
-        return state_in_.read(state, true, 100) == robot_ipc::channel_status::ok;
-    }
-
-    void write_low_cmd(const control::msg_motor_cmd_t& motor)
-    {
-        robot_msgs::LowState state{};
-        if (state_in_.read(state, false) != robot_ipc::channel_status::ok)
-        {
-            state.num_motors = 6;
-        }
-
-        robot_msgs::LowCmd cmd{};
-        cmd.num_motors = state.num_motors > 0 ? state.num_motors : 6;
-        for (std::uint32_t i = 0; i < cmd.num_motors && i < 6; ++i)
-        {
-            cmd.motors[i].mode = robot_msgs::kMotorModeTorque;
-            cmd.motors[i].tau = motor.tau[i];
-        }
-        cmd_out_.write(cmd);
-    }
-
-    control::msg_raw_state_t to_raw_state(const robot_msgs::LowState& state) const
-    {
-        control::msg_raw_state_t raw{};
-        raw.time = state.time;
-        for (int i = 0; i < 3; ++i)
-        {
-            raw.gyro[i] = state.imu.gyro[i];
-            raw.accel[i] = state.imu.accel[i];
-            raw.quat_gt[i] = state.imu.quat[i];
-        }
-        raw.quat_gt[3] = state.imu.quat[3];
-
-        const std::uint32_t n = state.num_motors < 6 ? state.num_motors : 6;
-        for (std::uint32_t i = 0; i < n; ++i)
-        {
-            raw.motors[i].q = state.motors[i].q;
-            raw.motors[i].dq = state.motors[i].dq;
-            raw.motors[i].tau = state.motors[i].tau_est;
-        }
-        return raw;
-    }
-
-    void apply_imu_noise(control::msg_raw_state_t& raw)
-    {
-        std::normal_distribution<float> gyro_noise(0.0f, cfg_.imu_sim.gyro_noise_std);
-        std::normal_distribution<float> accel_noise(0.0f, cfg_.imu_sim.accel_noise_std);
-
-        for (int i = 0; i < 3; ++i)
-        {
-            raw.gyro[i] += cfg_.imu_sim.gyro_bias[i];
-            if (cfg_.imu_sim.gyro_noise_std > 0.0f)
-            {
-                raw.gyro[i] += gyro_noise(rng_);
-            }
-            if (cfg_.imu_sim.accel_noise_std > 0.0f)
-            {
-                raw.accel[i] += accel_noise(rng_);
-            }
-        }
-
-        if (cfg_.imu_sim.lever_arm_x != 0.0f)
-        {
-            raw.accel[0] += cfg_.imu_sim.lever_arm_x * raw.gyro[2] * raw.gyro[2];
-        }
-    }
-
-    control::input_snapshot_t read_input()
-    {
-        control::input_snapshot_t in{};
-        robot_ipc::input_shm_t shm{};
-        if (input_in_.valid() && input_in_.read(shm, false) == robot_ipc::channel_status::ok)
-        {
-            in.w = shm.w != 0;
-            in.s = shm.s != 0;
-            in.a = shm.a != 0;
-            in.d = shm.d != 0;
-            in.q = shm.q != 0;
-            in.e = shm.e != 0;
-            in.space = shm.space != 0;
-            in.r = shm.r != 0;
-            in.f = shm.f != 0;
-        }
-        return in;
-    }
-
-private:
-    void init(const app_config& cfg)
-    {
-        cfg_ = cfg;
-        state_in_ = robot_ipc::ShmChannel<robot_msgs::LowState>::open_client(cfg.ipc_prefix + "_lowstate");
-        cmd_out_ = robot_ipc::ShmChannel<robot_msgs::LowCmd>::open_client(cfg.ipc_prefix + "_lowcmd");
-        input_in_ = robot_ipc::ShmChannel<robot_ipc::input_shm_t>::open_client(cfg.ipc_prefix + "_input");
-    }
-
-    app_config cfg_{};
-    robot_ipc::ShmChannel<robot_msgs::LowState> state_in_;
-    robot_ipc::ShmChannel<robot_msgs::LowCmd> cmd_out_;
-    robot_ipc::ShmChannel<robot_ipc::input_shm_t> input_in_;
-    mutable std::mt19937 rng_{std::random_device{}()};
-};
 
 namespace
 {
@@ -187,8 +73,8 @@ void print_state_block(double time, const control::msg_ins_t& ins, const control
                 ins.accel[2]);
 
     auto print_motor = [&](const char* name, int i) {
-        std::printf("  %s: q=%.4f dq=%.4f tau=%.4f\n", name, raw.motors[i].q, raw.motors[i].dq,
-                    raw.motors[i].tau);
+        std::printf("  %s: q=%.4f dq=%.4f tau_est=%.4f tau_cmd=%.4f\n", name, raw.motors[i].q, raw.motors[i].dq,
+                    raw.motors[i].tau, motor_cmd.tau[i]);
     };
     auto link = [&](const char* tag, const control::link_solver& lk, const float f_cmd[2], int motor_base) {
         std::printf("  %s_link: len=%.4f dlen=%.4f phi=%.4f dphi=%.4f alpha=%.4f dalpha=%.4f alpha_eq=%.4f "
@@ -216,10 +102,10 @@ void print_state_block(double time, const control::msg_ins_t& ins, const control
 
 }  // namespace
 
-output_node::output_node(const app_config& cfg, shm_io& io, std::atomic<bool>& running)
+output_node::output_node(const app_config& cfg, ecal_io& io, std::atomic<bool>& running)
     : cfg_(cfg), io_(io), running_(running), thread_([this] { loop(); })
 {
-    io_.write_low_cmd({});
+    io_.update_motor_cmd({});
 }
 
 output_node::~output_node()
@@ -232,26 +118,24 @@ output_node::~output_node()
 
 void output_node::loop()
 {
-    auto next = std::chrono::steady_clock::now();
+    const auto tick_wait = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<double>(1.0 / static_cast<double>(cfg_.control_hz)));
     while (running_.load())
     {
-        robot_msgs::LowState state{};
-        if (io_.read_low_state(state))
-        {
-            msg::publish(io_.to_raw_state(state), {false});
-        }
+        io_.poll();
 
-        control::msg_motor_cmd_t motor{};
-        if (msg::read(sub_motor_cmd_, motor) != msg::status::ok)
+        control::msg_motor_cmd_t latest{};
+        if (msg::read(sub_motor_cmd_, latest) == msg::status::ok)
         {
-            std::memset(&motor, 0, sizeof(motor));
+            motor_cmd_ = latest;
         }
-        io_.write_low_cmd(motor);
-        sleep_until_tick(next, cfg_.control_hz);
+        io_.update_motor_cmd(motor_cmd_);
+
+        io_.wait_for_tick_and_commit(tick_wait);
     }
 }
 
-imu_node::imu_node(const app_config& cfg, shm_io& io, std::atomic<bool>& running)
+imu_node::imu_node(const app_config& cfg, ecal_io& io, std::atomic<bool>& running)
     : cfg_(cfg), io_(io), running_(running), thread_([this] { loop(); })
 {
 }
@@ -293,8 +177,8 @@ void imu_node::loop()
     }
 }
 
-cmd_node::cmd_node(const app_config& cfg, shm_io& io, std::atomic<bool>& running)
-    : cfg_(cfg), io_(io), running_(running), thread_([this] { loop(); })
+cmd_node::cmd_node(const app_config& cfg, std::atomic<bool>& running)
+    : cfg_(cfg), running_(running), thread_([this] { loop(); })
 {
 }
 
@@ -316,15 +200,18 @@ void cmd_node::loop()
 
     while (running_.load())
     {
-        const control::input_snapshot_t input = io_.read_input();
-        msg::publish(input, {false});
+        control::input_snapshot_t latest{};
+        if (msg::read(sub_input_, latest) == msg::status::ok)
+        {
+            input_ = latest;
+        }
 
         control::msg_pendulum_t pendulum{};
         control::msg_ins_t ins{};
         msg::read(sub_pendulum_, pendulum);
         msg::read(sub_ins_, ins);
 
-        fusion.update(input, pendulum, ins, cfg_.chassis, dt);
+        fusion.update(input_, pendulum, ins, cfg_.chassis, dt);
         msg::publish(fusion.msg(), {false});
         sleep_until_tick(next, cfg_.control_hz);
     }
@@ -418,7 +305,7 @@ void control_node::loop()
             std::memset(&fout.motor, 0, sizeof(fout.motor));
         }
 
-        msg::publish(fout.motor, {false});
+        msg::publish(fout.motor, {true});
         msg::publish(fout.pendulum, {false});
 
         if (log_every > 0 && ++log_counter >= log_every)
@@ -433,12 +320,12 @@ void control_node::loop()
 }
 
 controller_app::controller_app(const app_config& cfg)
-    : cfg_(cfg), io_(std::make_unique<shm_io>(cfg)), output_(cfg_, *io_, running_), imu_(cfg_, *io_, running_),
-      cmd_(cfg_, *io_, running_), control_(cfg_, running_)
+    : cfg_(cfg), io_(std::make_unique<ecal_io>(cfg)), output_(cfg_, *io_, running_), imu_(cfg_, *io_, running_),
+      cmd_(cfg_, running_), control_(cfg_, running_)
 {
     if (!io_->valid())
     {
-        std::fprintf(stderr, "failed to open shm channels (ipc=%s)\n", cfg_.ipc_prefix.c_str());
+        std::fprintf(stderr, "failed to open eCAL transport (topic_ns=%s)\n", cfg_.ipc_prefix.c_str());
         running_.store(false);
     }
 }
