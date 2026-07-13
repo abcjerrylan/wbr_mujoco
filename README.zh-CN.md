@@ -52,14 +52,17 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-默认在 `../mujoco_interface` 查找依赖；可手动指定：
+默认使用独立编译好的 `../mujoco_interface/build/libmujoco_interface_core.a`；
+路径可手动指定：
 
 ```bash
-cmake -B build -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface
+cmake -B build \
+  -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface \
+  -DMUJOCO_INTERFACE_BUILD_DIR=/path/to/mujoco_interface/build
 ```
 
-会链接 `mujoco_interface_core`，并在 `build/mujoco_interface/bin/` 下生成 sim 可执行文件。  
-也可直接使用 `mujoco_interface` 仓库里单独编译的产物。
+这只会把控制器链接到独立编译的 `mujoco_interface_core`，不会在本仓库里重新编译 sim。
+如果确实需要旧的集成编译模式，可加 `-DWBR_EMBED_MUJOCO_INTERFACE=ON`。
 
 ## 运行
 
@@ -67,18 +70,20 @@ cmake -B build -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface
 
 ```bash
 # 终端 1 — 仿真（mujoco_interface 独立编译）
-../mujoco_interface/build/bin/mujoco_interface \
+../mujoco_interface/build/mujoco_interface \
   -c config/robots/wbr.yaml
 
 # 终端 2 — 控制器
 ./build/ctrl -c config/robots/wbr.yaml
 ```
 
-或使用 wbr_mujoco 集成编译出的 sim：
+如需使用旧的集成编译模式：
 
 ```bash
-./build/mujoco_interface/bin/mujoco_interface -c config/robots/wbr.yaml
-./build/ctrl -c config/robots/wbr.yaml
+cmake -B build-integrated -DWBR_EMBED_MUJOCO_INTERFACE=ON
+cmake --build build-integrated -j
+./build-integrated/mujoco_interface/bin/mujoco_interface -c config/robots/wbr.yaml
+./build-integrated/ctrl -c config/robots/wbr.yaml
 ```
 
 无窗口：sim 加 `--headless`。键盘需聚焦 sim 窗口。  
@@ -89,7 +94,7 @@ YAML 中 `ipc_prefix` 为 eCAL topic 命名空间（默认 `wbr`）。
 ```bash
 ./build/test_import
 ./build/test_import config/robots/wbr.yaml
-cd build/mujoco_interface && ctest
+ctest --test-dir ../mujoco_interface/build --output-on-failure
 ```
 
 ## 常见问题

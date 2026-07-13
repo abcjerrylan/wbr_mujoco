@@ -24,9 +24,19 @@ endif()
 set(MUJOCO_DIR "${MUJOCO_INTERFACE_DIR}/mujoco" CACHE PATH "MuJoCo root")
 set(ECAL_ROOT "${MUJOCO_INTERFACE_DIR}/third_party/ecal/usr" CACHE PATH "Local eCAL prefix")
 set(ECAL_LIB_DIR "${ECAL_ROOT}/lib/x86_64-linux-gnu")
+set(MUJOCO_INTERFACE_BUILD_DIR "${MUJOCO_INTERFACE_DIR}/build" CACHE PATH
+    "Path to standalone mujoco_interface build directory")
 
 find_package(Threads REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(glfw3 REQUIRED)
+
+if(TARGET yaml-cpp AND NOT TARGET yaml-cpp::yaml-cpp)
+  add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+endif()
+
+option(WBR_EMBED_MUJOCO_INTERFACE
+  "Build mujoco_interface as a subdirectory of wbr_mujoco" OFF)
 
 # --- common (in-proc msg bus only) ---
 add_library(msg common/src/msg.cpp)
@@ -35,9 +45,49 @@ target_include_directories(msg PUBLIC common/include)
 add_library(control_core INTERFACE)
 target_include_directories(control_core INTERFACE controller/include)
 
-# --- mujoco_interface (static lib; server exe built in its own repo or via all_sim) ---
+# --- mujoco_interface ---
 enable_testing()
-add_subdirectory(${MUJOCO_INTERFACE_DIR} ${CMAKE_BINARY_DIR}/mujoco_interface)
+if(WBR_EMBED_MUJOCO_INTERFACE)
+  add_subdirectory(${MUJOCO_INTERFACE_DIR} ${CMAKE_BINARY_DIR}/mujoco_interface)
+  add_custom_target(all_sim DEPENDS mujoco_interface)
+else()
+  set(MUJOCO_INTERFACE_CORE_LIB
+      "${MUJOCO_INTERFACE_BUILD_DIR}/libmujoco_interface_core.a"
+      CACHE FILEPATH "Path to standalone libmujoco_interface_core.a")
+  if(NOT EXISTS "${MUJOCO_INTERFACE_CORE_LIB}")
+    message(FATAL_ERROR
+      "Standalone mujoco_interface_core library not found:\n"
+      "  ${MUJOCO_INTERFACE_CORE_LIB}\n"
+      "Build mujoco_interface first:\n"
+      "  cmake -S ${MUJOCO_INTERFACE_DIR} -B ${MUJOCO_INTERFACE_BUILD_DIR} -DCMAKE_BUILD_TYPE=Release\n"
+      "  cmake --build ${MUJOCO_INTERFACE_BUILD_DIR} -j\n"
+      "Or configure with -DWBR_EMBED_MUJOCO_INTERFACE=ON for the old integrated build.")
+  endif()
+  if(NOT EXISTS "${MUJOCO_DIR}/include/mujoco/mujoco.h")
+    message(FATAL_ERROR "MuJoCo headers not found at ${MUJOCO_DIR}/include")
+  endif()
+  if(NOT EXISTS "${MUJOCO_DIR}/lib/libmujoco.so")
+    message(FATAL_ERROR "MuJoCo library not found at ${MUJOCO_DIR}/lib/libmujoco.so")
+  endif()
+  if(NOT EXISTS "${ECAL_LIB_DIR}/libecal_core.so")
+    message(FATAL_ERROR "eCAL library not found at ${ECAL_LIB_DIR}/libecal_core.so")
+  endif()
+
+  add_library(ecal_core SHARED IMPORTED GLOBAL)
+  set_target_properties(ecal_core PROPERTIES
+    IMPORTED_LOCATION "${ECAL_LIB_DIR}/libecal_core.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${ECAL_ROOT}/include"
+  )
+
+  add_library(mujoco_interface_core STATIC IMPORTED GLOBAL)
+  set_target_properties(mujoco_interface_core PROPERTIES
+    IMPORTED_LOCATION "${MUJOCO_INTERFACE_CORE_LIB}"
+    INTERFACE_INCLUDE_DIRECTORIES
+      "${MUJOCO_INTERFACE_DIR}/include;${MUJOCO_DIR}/include;${ECAL_ROOT}/include"
+    INTERFACE_LINK_LIBRARIES
+      "yaml-cpp::yaml-cpp;Threads::Threads;glfw;ecal_core;${MUJOCO_DIR}/lib/libmujoco.so"
+  )
+endif()
 
 # --- controller ---
 add_executable(ctrl
@@ -59,8 +109,6 @@ set_target_properties(ctrl PROPERTIES
   INSTALL_RPATH "${ECAL_LIB_DIR};${MUJOCO_DIR}/lib"
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
-
-add_custom_target(all_sim DEPENDS mujoco_interface)
 
 add_executable(test_import tests/test_import.cpp)
 target_link_libraries(test_import PRIVATE mujoco_interface_core)

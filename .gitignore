@@ -1,9 +1,11 @@
 .vscode/
 .cursor/
+.agents/
 
 mujoco
 
 build/
+build*/
 __pycache__/
 
 sim.log

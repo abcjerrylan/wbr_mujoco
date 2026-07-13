@@ -50,14 +50,18 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-`cmake` looks for `../mujoco_interface` by default. Override if needed:
+`cmake` looks for a standalone `../mujoco_interface/build/libmujoco_interface_core.a`
+by default. Override paths if needed:
 
 ```bash
-cmake -B build -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface
+cmake -B build \
+  -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface \
+  -DMUJOCO_INTERFACE_BUILD_DIR=/path/to/mujoco_interface/build
 ```
 
-This links `ctrl` against `mujoco_interface_core` and also builds the sim server under `build/mujoco_interface/bin/`.  
-You can use that binary or the one from a standalone `mujoco_interface/build/` — they are the same target.
+This links `ctrl` against the standalone `mujoco_interface_core` build. It does
+not rebuild the sim server from this repo. If you really want the old integrated
+build, configure with `-DWBR_EMBED_MUJOCO_INTERFACE=ON`.
 
 ## Run
 
@@ -65,20 +69,21 @@ Two terminals, **sim first**:
 
 ```bash
 # Terminal 1 — simulation server (from mujoco_interface build)
-../mujoco_interface/build/bin/mujoco_interface \
+../mujoco_interface/build/mujoco_interface \
   -c config/robots/wbr.yaml
 
 # Terminal 2 — controller (from wbr_mujoco build)
 ./build/ctrl -c config/robots/wbr.yaml
 ```
 
-Or use the sim binary produced by wbr_mujoco’s integrated build:
+To use the old integrated build mode:
 
 ```bash
-./build/mujoco_interface/bin/mujoco_interface -c config/robots/wbr.yaml
-./build/ctrl -c config/robots/wbr.yaml
+cmake -B build-integrated -DWBR_EMBED_MUJOCO_INTERFACE=ON
+cmake --build build-integrated -j
+./build-integrated/mujoco_interface/bin/mujoco_interface -c config/robots/wbr.yaml
+./build-integrated/ctrl -c config/robots/wbr.yaml
 ```
 
 Headless (no viewer): add `--headless` to the sim command.  
 Focus the sim window for keyboard input. YAML `ipc_prefix` sets the eCAL topic namespace (default `wbr`).
-
