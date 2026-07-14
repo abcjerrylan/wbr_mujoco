@@ -367,7 +367,7 @@ public:
 
     float hip_sign() const { return reverse_ ? -1.0f : 1.0f; }
 
-    float wheel_sign() const { return reverse_ ? 1.0f : -1.0f; }
+    float wheel_sign() const { return reverse_ ? -1.0f : 1.0f; }
 
     link_solver& link() { return link_; }
     const link_solver& link() const { return link_; }

@@ -25,7 +25,7 @@ def convert_m_to_py(m_path: Path, py_path: Path, func_name: str, ret: str) -> No
         line = matlab_line_to_py(line)
         line = re.sub(
             rf"{ret} = reshape\(\[([^\]]+)\],(\d+),(\d+)\)",
-            rf"return np.concatenate([\1]).reshape((\2, \3))",
+            r"return np.concatenate([\1]).reshape((\2, \3), order='F')",
             line,
         )
         lines_out.append("    " + line)

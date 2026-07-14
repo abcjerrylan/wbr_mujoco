@@ -217,19 +217,19 @@ public:
     {
         if (input.w)
         {
-            vel_slope_.update_val(vel_slope_.value() + 0.006f);
+            vel_slope_.update_val(vel_slope_.value() + 0.0006f);
         }
         if (input.s)
         {
-            vel_slope_.update_val(vel_slope_.value() - 0.006f);
+            vel_slope_.update_val(vel_slope_.value() - 0.0006f);
         }
         if (input.a)
         {
-            yaw_slope_.update_val(yaw_slope_.value() - 0.006f);
+            yaw_slope_.update_val(yaw_slope_.value() - 0.0006f);
         }
         if (input.d)
         {
-            yaw_slope_.update_val(yaw_slope_.value() + 0.006f);
+            yaw_slope_.update_val(yaw_slope_.value() + 0.0006f);
         }
         if (input.q)
         {

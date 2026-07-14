@@ -39,6 +39,6 @@ LEG_DATA = np.array(
     dtype=float,
 )
 
-L_VALS = np.arange(0.10, 0.38, 0.01)
+L_VALS = np.round(np.arange(0.10, 0.371, 0.01), 2)
 R_W = 0.0752
 R_L = 0.422 / 2.0
