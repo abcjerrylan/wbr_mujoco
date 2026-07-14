@@ -10,23 +10,6 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
 endif()
 
-# Sibling checkout: ../mujoco_interface (override with -DMUJOCO_INTERFACE_DIR=...)
-if(NOT MUJOCO_INTERFACE_DIR)
-  set(MUJOCO_INTERFACE_DIR "${CMAKE_SOURCE_DIR}/../mujoco_interface" CACHE PATH
-      "Path to mujoco_interface repository")
-endif()
-if(NOT EXISTS "${MUJOCO_INTERFACE_DIR}/CMakeLists.txt")
-  message(FATAL_ERROR
-    "mujoco_interface not found at ${MUJOCO_INTERFACE_DIR}.\n"
-    "Clone it next to wbr_mujoco or pass -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface")
-endif()
-
-set(MUJOCO_DIR "${MUJOCO_INTERFACE_DIR}/mujoco" CACHE PATH "MuJoCo root")
-set(ECAL_ROOT "${MUJOCO_INTERFACE_DIR}/third_party/ecal/usr" CACHE PATH "Local eCAL prefix")
-set(ECAL_LIB_DIR "${ECAL_ROOT}/lib/x86_64-linux-gnu")
-set(MUJOCO_INTERFACE_BUILD_DIR "${MUJOCO_INTERFACE_DIR}/build" CACHE PATH
-    "Path to standalone mujoco_interface build directory")
-
 find_package(Threads REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(glfw3 REQUIRED)
@@ -37,6 +20,31 @@ endif()
 
 option(WBR_EMBED_MUJOCO_INTERFACE
   "Build mujoco_interface as a subdirectory of wbr_mujoco" OFF)
+option(WBR_USE_MUJOCO_INTERFACE_PACKAGE
+  "Prefer an installed mujoco_interface CMake package over source/build paths" ON)
+
+# mujoco_interface can live anywhere. Preferred decoupled mode:
+#   cmake -B build -DCMAKE_PREFIX_PATH=/path/to/mujoco_interface/install
+#
+# Legacy fallback variables are kept for local development without installing:
+#   -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface
+#   -DMUJOCO_INTERFACE_INCLUDE_DIR=...
+#   -DMUJOCO_INTERFACE_CORE_LIB=...
+set(MUJOCO_INTERFACE_DIR "" CACHE PATH
+    "Optional path to a mujoco_interface source checkout for legacy fallback")
+set(MUJOCO_INTERFACE_INCLUDE_DIR "" CACHE PATH
+    "Path to mujoco_interface include directory for legacy fallback")
+set(MUJOCO_INTERFACE_BUILD_DIR "" CACHE PATH
+    "Path to standalone mujoco_interface build directory for legacy fallback")
+set(MUJOCO_INTERFACE_CORE_LIB "" CACHE FILEPATH
+    "Path to standalone libmujoco_interface_core.a for legacy fallback")
+set(MUJOCO_DIR "" CACHE PATH "MuJoCo root for legacy fallback")
+set(ECAL_ROOT "" CACHE PATH "eCAL prefix for legacy fallback")
+set(ECAL_LIB_DIR "")
+
+if(WBR_USE_MUJOCO_INTERFACE_PACKAGE AND NOT WBR_EMBED_MUJOCO_INTERFACE)
+  find_package(mujoco_interface CONFIG QUIET)
+endif()
 
 # --- common (in-proc msg bus only) ---
 add_library(msg common/src/msg.cpp)
@@ -48,20 +56,73 @@ target_include_directories(control_core INTERFACE controller/include)
 # --- mujoco_interface ---
 enable_testing()
 if(WBR_EMBED_MUJOCO_INTERFACE)
+  if(NOT MUJOCO_INTERFACE_DIR)
+    message(FATAL_ERROR
+      "WBR_EMBED_MUJOCO_INTERFACE=ON requires -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface")
+  endif()
   add_subdirectory(${MUJOCO_INTERFACE_DIR} ${CMAKE_BINARY_DIR}/mujoco_interface)
   add_custom_target(all_sim DEPENDS mujoco_interface)
+elseif(TARGET mujoco_interface::mujoco_interface_core)
+  add_library(mujoco_interface_core ALIAS mujoco_interface::mujoco_interface_core)
+  if(DEFINED MUJOCO_INTERFACE_ECAL_LIB_DIR)
+    set(ECAL_LIB_DIR "${MUJOCO_INTERFACE_ECAL_LIB_DIR}")
+  endif()
+  if(DEFINED MUJOCO_INTERFACE_MUJOCO_DIR)
+    set(MUJOCO_DIR "${MUJOCO_INTERFACE_MUJOCO_DIR}")
+  endif()
 else()
-  set(MUJOCO_INTERFACE_CORE_LIB
-      "${MUJOCO_INTERFACE_BUILD_DIR}/libmujoco_interface_core.a"
-      CACHE FILEPATH "Path to standalone libmujoco_interface_core.a")
+  if(NOT MUJOCO_INTERFACE_DIR)
+    set(_DEFAULT_MUJOCO_INTERFACE_DIR "${CMAKE_SOURCE_DIR}/../mujoco_interface")
+    if(EXISTS "${_DEFAULT_MUJOCO_INTERFACE_DIR}/CMakeLists.txt")
+      set(MUJOCO_INTERFACE_DIR "${_DEFAULT_MUJOCO_INTERFACE_DIR}" CACHE PATH
+          "Optional path to a mujoco_interface source checkout for legacy fallback" FORCE)
+    endif()
+  endif()
+  if(MUJOCO_INTERFACE_DIR)
+    if(NOT EXISTS "${MUJOCO_INTERFACE_DIR}/CMakeLists.txt")
+      message(FATAL_ERROR
+        "MUJOCO_INTERFACE_DIR is set but does not point to a mujoco_interface source tree:\n"
+        "  ${MUJOCO_INTERFACE_DIR}")
+    endif()
+    if(NOT MUJOCO_INTERFACE_INCLUDE_DIR)
+      set(MUJOCO_INTERFACE_INCLUDE_DIR "${MUJOCO_INTERFACE_DIR}/include" CACHE PATH
+          "Path to mujoco_interface include directory for legacy fallback" FORCE)
+    endif()
+    if(NOT MUJOCO_INTERFACE_BUILD_DIR)
+      set(MUJOCO_INTERFACE_BUILD_DIR "${MUJOCO_INTERFACE_DIR}/build" CACHE PATH
+          "Path to standalone mujoco_interface build directory for legacy fallback" FORCE)
+    endif()
+    if(NOT MUJOCO_DIR)
+      set(MUJOCO_DIR "${MUJOCO_INTERFACE_DIR}/mujoco" CACHE PATH "MuJoCo root for legacy fallback" FORCE)
+    endif()
+    if(NOT ECAL_ROOT)
+      set(ECAL_ROOT "${MUJOCO_INTERFACE_DIR}/third_party/ecal/usr" CACHE PATH "eCAL prefix for legacy fallback" FORCE)
+    endif()
+  endif()
+  if(NOT MUJOCO_INTERFACE_INCLUDE_DIR)
+    message(FATAL_ERROR
+      "mujoco_interface was not found.\n"
+      "Preferred: install mujoco_interface and pass -DCMAKE_PREFIX_PATH=/path/to/install.\n"
+      "Fallback: pass -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface or\n"
+      "          -DMUJOCO_INTERFACE_INCLUDE_DIR=/path/to/include")
+  endif()
+  set(ECAL_LIB_DIR "${ECAL_ROOT}/lib/x86_64-linux-gnu")
+  if(NOT MUJOCO_INTERFACE_CORE_LIB AND MUJOCO_INTERFACE_BUILD_DIR)
+    set(MUJOCO_INTERFACE_CORE_LIB
+        "${MUJOCO_INTERFACE_BUILD_DIR}/libmujoco_interface_core.a"
+        CACHE FILEPATH "Path to standalone libmujoco_interface_core.a" FORCE)
+  endif()
   if(NOT EXISTS "${MUJOCO_INTERFACE_CORE_LIB}")
     message(FATAL_ERROR
       "Standalone mujoco_interface_core library not found:\n"
       "  ${MUJOCO_INTERFACE_CORE_LIB}\n"
       "Build mujoco_interface first:\n"
-      "  cmake -S ${MUJOCO_INTERFACE_DIR} -B ${MUJOCO_INTERFACE_BUILD_DIR} -DCMAKE_BUILD_TYPE=Release\n"
-      "  cmake --build ${MUJOCO_INTERFACE_BUILD_DIR} -j\n"
+      "  cmake -S /path/to/mujoco_interface -B /path/to/mujoco_interface/build -DCMAKE_BUILD_TYPE=Release\n"
+      "  cmake --build /path/to/mujoco_interface/build -j\n"
       "Or configure with -DWBR_EMBED_MUJOCO_INTERFACE=ON for the old integrated build.")
+  endif()
+  if(NOT EXISTS "${MUJOCO_INTERFACE_INCLUDE_DIR}/mujoco_interface")
+    message(FATAL_ERROR "mujoco_interface headers not found at ${MUJOCO_INTERFACE_INCLUDE_DIR}")
   endif()
   if(NOT EXISTS "${MUJOCO_DIR}/include/mujoco/mujoco.h")
     message(FATAL_ERROR "MuJoCo headers not found at ${MUJOCO_DIR}/include")
@@ -83,7 +144,7 @@ else()
   set_target_properties(mujoco_interface_core PROPERTIES
     IMPORTED_LOCATION "${MUJOCO_INTERFACE_CORE_LIB}"
     INTERFACE_INCLUDE_DIRECTORIES
-      "${MUJOCO_INTERFACE_DIR}/include;${MUJOCO_DIR}/include;${ECAL_ROOT}/include"
+      "${MUJOCO_INTERFACE_INCLUDE_DIR};${MUJOCO_DIR}/include;${ECAL_ROOT}/include"
     INTERFACE_LINK_LIBRARIES
       "yaml-cpp::yaml-cpp;Threads::Threads;glfw;ecal_core;${MUJOCO_DIR}/lib/libmujoco.so"
   )
@@ -110,6 +171,8 @@ set_target_properties(ctrl PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
-add_executable(test_import tests/test_import.cpp)
-target_link_libraries(test_import PRIVATE mujoco_interface_core)
-set_target_properties(test_import PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_import.cpp")
+  add_executable(test_import tests/test_import.cpp)
+  target_link_libraries(test_import PRIVATE mujoco_interface_core)
+  set_target_properties(test_import PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()

@@ -1,89 +1,194 @@
 # wbr_mujoco
 
-WBR RoboMaster balance wheel-leg — controller + robot assets.  
-MuJoCo simulation server lives in the separate **[mujoco_interface](https://github.com/CosmosMount/mujoco_interface)** repo.
+WBR RoboMaster balance wheel-leg controller, MuJoCo robot model, runtime config,
+and control-tuning tools.
 
-## Repositories
+This repository is a downstream controller project. Simulation runtime is
+provided by an installed `mujoco_interface` package; this repository owns only
+the WBR-specific controller, YAML config, MJCF scene, meshes, and tuning tools.
 
-Clone both **side by side** (sibling directories):
+## Layout
+
+```text
+controller/              WBR controller app, eCAL I/O, control code
+common/                  small in-process message utilities
+config/robots/wbr.yaml   WBR runtime config for simulator and controller
+mjcf/                    WBR scene, model, and mesh assets
+tools/                   mesh repair and LQR fitting utilities
+```
+
+## Requirements
+
+- CMake 3.16+
+- C++17 compiler
+- `yaml-cpp`
+- `glfw3`
+- installed `mujoco_interface` release package
+
+Install `mujoco_interface` first, for example:
 
 ```bash
-git clone git@github.com:CosmosMount/wbr_mujoco.git
-git clone git@github.com:CosmosMount/mujoco_interface.git
-```
-
-Expected layout:
-
-```
-code/
-├── wbr_mujoco/          # this repo — controller, MJCF, wbr.yaml
-└── mujoco_interface/    # sim server + core + eCAL transport
-```
-
-## Layout (wbr_mujoco)
-
-```
-controller/          control core + ecal_io
-common/              in-proc msg bus
-config/robots/       wbr.yaml
-mjcf/                scene + meshes
-tests/               test_import
+cmake --install /path/to/mujoco_interface/build --prefix /opt/mujoco_interface
 ```
 
 ## Build
 
-### One-time setup (mujoco_interface)
-
-```bash
-cd ../mujoco_interface
-ln -sf /opt/mujoco-3.3.6 mujoco
-./scripts/fetch_ecal.sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
-
-### Controller + tests (this repo)
-
-```bash
-cd wbr_mujoco
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
-
-`cmake` looks for a standalone `../mujoco_interface/build/libmujoco_interface_core.a`
-by default. Override paths if needed:
+Build this repository against the installed interface package:
 
 ```bash
 cmake -B build \
-  -DMUJOCO_INTERFACE_DIR=/path/to/mujoco_interface \
-  -DMUJOCO_INTERFACE_BUILD_DIR=/path/to/mujoco_interface/build
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH=/opt/mujoco_interface
+cmake --build build -j
 ```
 
-This links `ctrl` against the standalone `mujoco_interface_core` build. It does
-not rebuild the sim server from this repo. If you really want the old integrated
-build, configure with `-DWBR_EMBED_MUJOCO_INTERFACE=ON`.
+This builds:
+
+```text
+build/ctrl
+```
+
+`wbr_mujoco` does not build or vendor the simulator. It consumes
+`mujoco_interface::mujoco_interface_core` from the installed package.
 
 ## Run
 
-Two terminals, **sim first**:
+Use two terminals. Start the simulator first, then the controller.
+
+Terminal 1 — simulator:
 
 ```bash
-# Terminal 1 — simulation server (from mujoco_interface build)
-../mujoco_interface/build/mujoco_interface \
-  -c config/robots/wbr.yaml
+/opt/mujoco_interface/bin/mujoco_interface \
+  -c /absolute/path/to/wbr_mujoco/config/robots/wbr.yaml
+```
 
-# Terminal 2 — controller (from wbr_mujoco build)
+Headless simulator:
+
+```bash
+/opt/mujoco_interface/bin/mujoco_interface \
+  -c /absolute/path/to/wbr_mujoco/config/robots/wbr.yaml \
+  --headless
+```
+
+Terminal 2 — controller:
+
+```bash
 ./build/ctrl -c config/robots/wbr.yaml
 ```
 
-To use the old integrated build mode:
+The simulator and controller must use the same YAML config, or at least matching
+`ipc_prefix` values. The default WBR config uses:
 
-```bash
-cmake -B build-integrated -DWBR_EMBED_MUJOCO_INTERFACE=ON
-cmake --build build-integrated -j
-./build-integrated/mujoco_interface/bin/mujoco_interface -c config/robots/wbr.yaml
-./build-integrated/ctrl -c config/robots/wbr.yaml
+```yaml
+ipc_prefix: wbr
+timestep: 0.001
 ```
 
-Headless (no viewer): add `--headless` to the sim command.  
-Focus the sim window for keyboard input. YAML `ipc_prefix` sets the eCAL topic namespace (default `wbr`).
+The default timestep is 1 kHz. `mujoco_interface` prints realtime-rate metrics by
+default; a healthy headless run should report `total_real_time_rate` close to
+1.0.
+
+## `tools/` Python scripts
+
+### `tools/fix_stl_for_mujoco.py`
+
+Repairs STL meshes so MuJoCo can load them. It can:
+
+- convert ASCII STL files to binary STL;
+- decimate meshes above MuJoCo's 200,000-face limit;
+- replace empty 0-face marker meshes with a tiny tetrahedron;
+- optionally verify meshes with the Python `mujoco` package.
+
+Dependencies:
+
+```bash
+python3 -m pip install numpy trimesh pymeshlab mujoco
+```
+
+Usage:
+
+```bash
+# Show planned changes
+python3 tools/fix_stl_for_mujoco.py --dir mjcf/meshes --dry-run
+
+# Repair meshes and keep backups in mjcf/meshes/stl_backup
+python3 tools/fix_stl_for_mujoco.py --dir mjcf/meshes
+
+# Use a custom backup directory
+python3 tools/fix_stl_for_mujoco.py --dir mjcf/meshes --backup /tmp/wbr_stl_backup
+
+# Overwrite without backups
+python3 tools/fix_stl_for_mujoco.py --dir mjcf/meshes --no-backup
+```
+
+### `tools/lqr/fit_lqr.py`
+
+Fits polynomial LQR gains for the wheel-leg balance controller and can update:
+
+```text
+controller/include/control/lqr_coeffs.hpp
+```
+
+Usage:
+
+```bash
+# Print generated C++ arrays without writing files
+python3 tools/lqr/fit_lqr.py
+
+# Refit gains and update lqr_coeffs.hpp
+python3 tools/lqr/fit_lqr.py --write
+
+# Scale the existing header without a full refit
+python3 tools/lqr/fit_lqr.py --scale 0.62 --write
+
+# Evaluate diagnostic norm at a specific leg length
+python3 tools/lqr/fit_lqr.py --eval-len 0.18
+```
+
+Dependencies:
+
+- `--scale`: Python 3 + NumPy
+- full refit: Python 3 + NumPy + SciPy
+
+Tune `low`, `high`, and `spin` weights in `LQR_WEIGHTS` inside
+`tools/lqr/fit_lqr.py`.
+
+### `tools/lqr/gen_matrices.py`
+
+Regenerates generated matrix helpers from MATLAB exports:
+
+```bash
+python3 tools/lqr/gen_matrices.py
+```
+
+Inputs:
+
+```text
+tools/lqr/vendor/Amatrix.m
+tools/lqr/vendor/Bmatrix.m
+```
+
+Outputs:
+
+```text
+tools/lqr/amatrix.py
+tools/lqr/bmatrix.py
+```
+
+Supporting modules used by `fit_lqr.py`:
+
+```text
+tools/lqr/dynamics.py   builds A/B matrices from generated symbolic functions
+tools/lqr/leg_data.py   leg length, COM, and inertia table
+tools/lqr/amatrix.py    generated symbolic A helper
+tools/lqr/bmatrix.py    generated symbolic B helper
+```
+
+## Troubleshooting
+
+- CMake cannot find `mujoco_interface`: pass
+  `-DCMAKE_PREFIX_PATH=/path/to/mujoco_interface/install`.
+- Simulator and controller do not connect: check that both use matching
+  `ipc_prefix` values.
+- Mesh loading fails: run `python3 tools/fix_stl_for_mujoco.py --dir mjcf/meshes`.
+- No GUI needed or no display available: run the simulator with `--headless`.
