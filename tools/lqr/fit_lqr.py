@@ -94,15 +94,6 @@ def fit_gains(q_diag: list[float], r_diag: list[float]) -> np.ndarray:
     return coeffs
 
 
-def eval_k(coeffs: np.ndarray, ll: float, lr: float) -> np.ndarray:
-    k = np.zeros((4, 10))
-    for i in range(4):
-        for j in range(10):
-            a1, a2, a3, a4, a5, a6 = coeffs[i, j]
-            k[i, j] = a1 + a2 * ll + a3 * lr + a4 * ll * ll + a5 * ll * lr + a6 * lr * lr
-    return k
-
-
 def parse_header(path: Path) -> dict[str, np.ndarray]:
     text = path.read_text()
     out: dict[str, np.ndarray] = {}
@@ -160,7 +151,6 @@ def main() -> int:
     parser.add_argument("--scale", type=float, default=None, help="Scale coeffs from --from-header")
     parser.add_argument("--from-header", type=Path, default=DEFAULT_HEADER)
     parser.add_argument("--write", action="store_true", help="Update controller/include/control/lqr_coeffs.hpp")
-    parser.add_argument("--eval-len", type=float, default=0.16, help="Leg length for ||K|| diagnostic")
     args = parser.parse_args()
 
     if args.scale is not None:
@@ -176,11 +166,6 @@ def main() -> int:
         cfg = LQR_WEIGHTS[key]
         print(format_array(ARRAY_MAP[key], coeffs[key], cfg["Q"], cfg["R"]))
         print()
-
-    if args.eval_len > 0:
-        ll = lr = args.eval_len
-        k = eval_k(coeffs["low"], ll, lr)
-        print(f"// @ L=R={ll:.2f}: ||K_low||_F={np.linalg.norm(k):.2f}", file=sys.stderr)
 
     if args.write:
         write_header(DEFAULT_HEADER, coeffs)

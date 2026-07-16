@@ -154,6 +154,7 @@ endif()
 add_executable(ctrl
   controller/src/main.cpp
   controller/src/app.cpp
+  controller/src/services.cpp
   controller/src/config.cpp
   controller/src/ecal_io.cpp
 )

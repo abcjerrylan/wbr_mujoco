@@ -141,6 +141,7 @@ struct msg_log_t
     float l_total_phi = 0.0f;
     float l_n = 0.0f;
     float l_f = 0.0f;
+    float l_fs = 0.0f;
     float l_flat = 0.0f;
     float l_neutral = 0.0f;
 
@@ -155,6 +156,7 @@ struct msg_log_t
     float r_total_phi = 0.0f;
     float r_n = 0.0f;
     float r_f = 0.0f;
+    float r_fs = 0.0f;
     float r_flat = 0.0f;
     float r_neutral = 0.0f;
 

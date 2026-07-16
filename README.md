@@ -140,9 +140,6 @@ python3 tools/lqr/fit_lqr.py --write
 
 # Scale the existing header without a full refit
 python3 tools/lqr/fit_lqr.py --scale 0.62 --write
-
-# Evaluate diagnostic norm at a specific leg length
-python3 tools/lqr/fit_lqr.py --eval-len 0.18
 ```
 
 Dependencies:
