@@ -43,18 +43,10 @@ struct msg_cmd_t
     float x = 0.0f;
     float v = 0.0f;
     float len = 0.16f;
-    float dlen = 0.0f;
     float yaw = 0.0f;
     float dyaw = 0.0f;
-    float roll = 0.0f;
-    float tri_spd = 0.0f;
-    std::uint16_t yawmotor_cur = 0;
-    bool iffly = false;
     bool move = false;
     bool spin = false;
-    bool gostair = false;
-    bool inair = false;
-    bool ifjump = false;
 };
 
 struct msg_ctrl_t
@@ -72,18 +64,7 @@ struct msg_motor_cmd_t
 
 struct msg_pendulum_t
 {
-    float N = 0.0f;
     float x = 0.0f;
-    float v = 0.0f;
-    float len = 0.0f;
-    bool flying = false;
-    bool normal = false;
-    bool recovered = false;
-    bool stairing = false;
-    bool spinning = false;
-    float lalpha = 0.0f;
-    float ralpha = 0.0f;
-    float pitch = 0.0f;
 };
 
 struct msg_odometry_t
@@ -111,7 +92,6 @@ struct input_snapshot_t
     bool q = false;
     bool e = false;
     bool space = false;
-    bool r = false;
     bool f = false;
 };
 

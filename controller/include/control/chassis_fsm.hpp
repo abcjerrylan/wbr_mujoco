@@ -69,12 +69,6 @@ public:
         out.ctrl = {};
         out.motor = {};
         out.pendulum.x = in.odom.x;
-        out.pendulum.v = in.odom.v;
-        out.pendulum.len = (ll.len_ + rl.len_) * 0.5f;
-        out.pendulum.lalpha = ll.alpha_;
-        out.pendulum.ralpha = rl.alpha_;
-        out.pendulum.pitch = in.ins.pitch;
-        out.pendulum.N = in.n_total;
 
         const float pitch = in.ins.pitch;
         const float dpitch = in.ins.gyro_p;
@@ -153,8 +147,6 @@ private:
         in.right.delta_init_ = false;
         target_len_ = cfg_.lmin;
         len_slope_.set_default(in.left.link().len_);
-        out.pendulum.recovered = in.ins.accel[2] >= 0.0f;
-        out.pendulum.normal = false;
         if (!cfg_.force_relax && in.cmd.move && !in.chassis_dead)
         {
             state_ = in.ins.accel[2] < 0.0f ? chassis_state::recover : chassis_state::flatten;
@@ -209,8 +201,6 @@ private:
     {
         auto& l = in.left;
         auto& r = in.right;
-        out.pendulum.normal = true;
-        out.pendulum.recovered = true;
 
         const auto& fh = cfg_.fsm_pid.flatten_high;
         const auto& flw = cfg_.fsm_pid.flatten_low;
@@ -337,13 +327,8 @@ private:
         fl[0] = l.len_control(cmd_len + roll_pd_.result_) + cfg_.gff - ll.fs_;
         fr[0] = r.len_control(cmd_len - roll_pd_.result_) + cfg_.gff - rl.fs_;
 
-        if (++air_protect_cnt_ < 500)
+        if (++air_protect_cnt_ >= 500)
         {
-            out.pendulum.normal = false;
-        }
-        else
-        {
-            out.pendulum.normal = true;
             len_slope_.set_asymmetric(0.00035f, 0.0007f);
         }
 

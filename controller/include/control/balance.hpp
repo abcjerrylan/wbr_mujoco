@@ -210,26 +210,48 @@ public:
         yaw_slope_.set_default(0.0f);
         yaw_slope_.set_path(0.006f);
         len_target_ = cfg.lmin;
+        yaw_ref_initialized_ = false;
+        yaw_active_prev_ = false;
     }
 
     void update(const input_snapshot_t& input, const msg_pendulum_t& pendulum, const msg_ins_t& ins,
                 const chassis_config& cfg, float dt)
     {
-        if (input.w)
+        if (input.w && !input.s)
         {
             vel_slope_.update_val(vel_slope_.value() + 0.0006f);
         }
-        if (input.s)
+        else if (input.s && !input.w)
         {
             vel_slope_.update_val(vel_slope_.value() - 0.0006f);
         }
-        if (input.a)
+        else
+        {
+            vel_slope_.update_val(0.0f);
+        }
+
+        const bool yaw_active = input.a != input.d;
+        if (!yaw_ref_initialized_)
+        {
+            msg_.yaw = ins.total_yaw;
+            yaw_ref_initialized_ = true;
+        }
+
+        if (input.a && !input.d)
+        {
+            yaw_slope_.update_val(yaw_slope_.value() + 0.0006f);
+        }
+        else if (input.d && !input.a)
         {
             yaw_slope_.update_val(yaw_slope_.value() - 0.0006f);
         }
-        if (input.d)
+        else
         {
-            yaw_slope_.update_val(yaw_slope_.value() + 0.0006f);
+            yaw_slope_.set_default(0.0f);
+            if (yaw_active_prev_)
+            {
+                msg_.yaw = ins.total_yaw;
+            }
         }
         if (input.q)
         {
@@ -271,7 +293,11 @@ public:
             msg_.x += msg_.v * dt;
         }
 
-        msg_.yaw = ins.total_yaw + msg_.dyaw * dt;
+        if (yaw_active)
+        {
+            msg_.yaw += msg_.dyaw * dt;
+        }
+        yaw_active_prev_ = yaw_active;
     }
 
     const msg_cmd_t& msg() const { return msg_; }
@@ -281,6 +307,8 @@ private:
     bool move_enabled_ = false;
     bool space_prev_ = false;
     bool space_armed_ = false;
+    bool yaw_ref_initialized_ = false;
+    bool yaw_active_prev_ = false;
     slope vel_slope_{0.0f, 0.006f};
     slope yaw_slope_{0.0f, 0.006f};
     float len_target_ = 0.16f;

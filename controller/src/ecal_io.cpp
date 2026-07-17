@@ -53,7 +53,6 @@ control::input_snapshot_t to_input_snapshot(const mujoco_interface::protocol::in
     snap.q = input.q;
     snap.e = input.e;
     snap.space = input.space;
-    snap.r = input.r;
     snap.f = input.f;
     return snap;
 }
