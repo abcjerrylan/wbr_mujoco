@@ -86,7 +86,8 @@ public:
         float a_body[3] = {acc[0], acc[1], acc[2]};
         float a_world[3] = {};
         quat_rotate_vec(quaternion, a_body, a_world);
-        const float a_x = a_world[0] * std::cos(yaw) + a_world[1] * std::sin(yaw);
+        const float a_x_raw = a_world[0] * std::cos(yaw) + a_world[1] * std::sin(yaw);
+        const float a_x = clamp(a_x_raw, -k_max_forward_accel, k_max_forward_accel);
 
         az = a_world[2];
 
@@ -150,6 +151,12 @@ public:
         }
 
         const float det = s[0] * s[3] - s[1] * s[2];
+        if (std::fabs(det) < 1e-9f)
+        {
+            x = x_hat_[0];
+            v = x_hat_[1];
+            return;
+        }
         const float inv_s[4] = {s[3] / det, -s[1] / det, -s[2] / det, s[0] / det};
 
         float ph_t[6] = {};
@@ -169,11 +176,16 @@ public:
         {
             for (int j = 0; j < 2; ++j)
             {
-                k_gain[i * 2 + j] = ph_t[j * 3 + i] * inv_s[j * 2 + j];
+                for (int k = 0; k < 2; ++k)
+                {
+                    k_gain[i * 2 + j] += ph_t[k * 3 + i] * inv_s[k * 2 + j];
+                }
             }
         }
 
         float y[2] = {z[0] - x_minus[1], z[1] - x_minus[2]};
+        y[0] = clamp(y[0], -k_max_velocity_innovation, k_max_velocity_innovation);
+        y[1] = clamp(y[1], -k_max_accel_innovation, k_max_accel_innovation);
         for (int i = 0; i < 3; ++i)
         {
             x_hat_[i] = x_minus[i];
@@ -188,6 +200,10 @@ public:
     }
 
 private:
+    static constexpr float k_max_forward_accel = 12.0f;
+    static constexpr float k_max_velocity_innovation = 1.5f;
+    static constexpr float k_max_accel_innovation = 15.0f;
+
     float x_hat_[3] = {};
     float p_[9] = {10, 0, 0, 0, 10, 0, 0, 0, 10};
     float p_init_[9] = {10, 0, 0, 0, 10, 0, 0, 0, 10};
@@ -229,6 +245,7 @@ public:
         {
             vel_slope_.update_val(0.0f);
         }
+        vel_slope_.set_default(clamp(vel_slope_.value(), -k_cmd_velocity_limit, k_cmd_velocity_limit));
 
         const bool yaw_active = input.a != input.d;
         if (!yaw_ref_initialized_)
@@ -286,7 +303,8 @@ public:
 
         if (std::fabs(msg_.v) < 1e-4f)
         {
-            msg_.x = pendulum.x;
+            const float err = pendulum.x - msg_.x;
+            msg_.x += clamp(err, -k_cmd_position_hold_step, k_cmd_position_hold_step);
         }
         else
         {
@@ -303,6 +321,9 @@ public:
     const msg_cmd_t& msg() const { return msg_; }
 
 private:
+    static constexpr float k_cmd_velocity_limit = 0.8f;
+    static constexpr float k_cmd_position_hold_step = 0.00025f;
+
     msg_cmd_t msg_{};
     bool move_enabled_ = false;
     bool space_prev_ = false;

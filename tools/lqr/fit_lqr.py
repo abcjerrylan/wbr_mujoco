@@ -40,7 +40,7 @@ DEFAULT_HEADER = REPO / "controller" / "include" / "control" / "lqr_coeffs.hpp"
 # R: [T_wl, T_wr, T_hip_l, T_hip_r]
 LQR_WEIGHTS: dict[str, dict[str, list[float]]] = {
     "low": {
-        "Q": [300, 20, 300, 100, 2000, 600, 2000, 600, 150000, 1500],
+        "Q": [1000, 400, 300, 100, 4000, 600, 4000, 600, 100000, 1500],
         "R": [5, 5, 1, 1],
     },
     "high": {

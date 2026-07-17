@@ -72,7 +72,7 @@ struct chassis_config
     float mwheel = 0.21f;
     float tk_wheel = 1400.0f;
     float thip_max = 40.0f;
-    float twheel_max = 10.0f;
+    float twheel_max = 5.2f;
     float gff = 67.865f;
     float fspring = 450.0f;
     float dspring1 = 0.03f;
