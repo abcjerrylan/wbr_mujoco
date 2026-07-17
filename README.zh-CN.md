@@ -87,6 +87,47 @@ timestep: 0.001
 默认 timestep 为 1 kHz。`mujoco_interface` 默认输出 realtime-rate 指标；
 正常 headless 运行时 `total_real_time_rate` 应接近 1.0。
 
+## 键位说明
+
+使用键盘控制前，请先让 simulator 窗口获得焦点。controller 从 `mujoco_interface`
+读取键盘状态快照。
+
+| 键位 | 功能 |
+| --- | --- |
+| `Space` | 切换运动使能/关闭 |
+| `W` | 增大前进速度命令 |
+| `S` | 增大后退速度命令 |
+| `A` | 增大左转 yaw-rate 命令 |
+| `D` | 增大右转 yaw-rate 命令 |
+| `Q` | 将腿长目标设为低位（`lmin`） |
+| `E` | 将腿长目标设为中位（`lmid`） |
+| `F` | 将腿长目标设为高位（`lmax`） |
+
+松开 `W`/`S` 后，速度命令会向零渐变。松开 `A`/`D` 后，yaw-rate 命令清零，
+yaw 参考会重置为当前 yaw。
+
+## 可视化
+
+`build/ctrl` 启动时会同时启动一个内置 Web 可视化服务。浏览器打开：
+
+```text
+http://localhost:2000
+```
+
+页面通过 `/events` 的 Server-Sent Events 订阅 controller 进程内的 `msg_log_t`
+数据流，并按组实时绘制关键观测量：
+
+- 姿态：`pitch`、左右腿 `alpha`、pitch gyro；
+- 命令与里程计：`cmd.x`、`cmd.v`、`odom.x`、`odom.v`；
+- 轮力矩：LQR 轮输出和轮电机命令力矩；
+- 腿部几何：左右腿 `phi` 和腿长；
+- 接触与竖直运动：左右法向力估计、总法向力、竖直加速度；
+- 电机实际力矩：simulator 返回的关节力矩。
+
+默认 1 kHz 控制频率下，可视化流在 controller 内部降采样到约 50 Hz。
+可视化服务跟随同一个 `build/ctrl` 进程运行；重新编译后如果页面仍是旧行为，
+请重启 controller。
+
 ## `tools/` Python 脚本
 
 ### `tools/fix_stl_for_mujoco.py`

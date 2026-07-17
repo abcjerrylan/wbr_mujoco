@@ -88,6 +88,50 @@ The default timestep is 1 kHz. `mujoco_interface` prints realtime-rate metrics b
 default; a healthy headless run should report `total_real_time_rate` close to
 1.0.
 
+## Keyboard Controls
+
+Focus the simulator window before using keyboard control. The controller reads
+the keyboard snapshot from `mujoco_interface`.
+
+| Key | Action |
+| --- | --- |
+| `Space` | Toggle motion enable/disable |
+| `W` | Increase forward velocity command |
+| `S` | Increase backward velocity command |
+| `A` | Increase left yaw-rate command |
+| `D` | Increase right yaw-rate command |
+| `Q` | Set leg length target to low (`lmin`) |
+| `E` | Set leg length target to middle (`lmid`) |
+| `F` | Set leg length target to high (`lmax`) |
+
+When `W`/`S` are released, the velocity command ramps back toward zero. When
+`A`/`D` are released, the yaw-rate command is cleared and the yaw reference is
+reset to the current yaw.
+
+## Visualization
+
+`build/ctrl` starts an embedded web visualizer with the controller. Open:
+
+```text
+http://localhost:2000
+```
+
+The page subscribes to the controller's in-process `msg_log_t` stream through
+Server-Sent Events at `/events`. It plots grouped real-time signals for:
+
+- attitude: `pitch`, left/right `alpha`, pitch gyro;
+- command and odometry: `cmd.x`, `cmd.v`, `odom.x`, `odom.v`;
+- wheel torque: LQR wheel outputs and commanded wheel motor torques;
+- leg geometry: left/right `phi` and leg length;
+- contact and vertical motion: left/right normal force estimates, total normal
+  force, vertical acceleration;
+- actual motor torque: measured joint torques from the simulator.
+
+The stream is downsampled inside the controller to roughly 50 Hz when the
+controller runs at the default 1 kHz rate. The visualizer uses the same
+controller process, so restart `build/ctrl` after rebuilding if the page still
+shows an older version.
+
 ## `tools/` Python scripts
 
 ### `tools/fix_stl_for_mujoco.py`
