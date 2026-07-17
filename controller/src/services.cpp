@@ -9,9 +9,17 @@
 #include "control/math.hpp"
 
 #include <chrono>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include <thread>
+#include <vector>
+
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 namespace controller
 {
@@ -133,7 +141,10 @@ control::msg_log_t make_log(double time, const control::msg_ins_t& ins, const co
     log.fsm = static_cast<std::uint8_t>(fsm);
     log.n_total = n_total;
     log.cmd_v = cmd.v;
+    log.cmd_x = cmd.x;
     log.cmd_len = cmd.len;
+    log.cmd_yaw = cmd.yaw;
+    log.cmd_dyaw = cmd.dyaw;
     log.cmd_move = cmd.move;
     return log;
 }
@@ -183,11 +194,114 @@ void print_state_block(const control::msg_log_t& log)
     print_motor("rjoint4", 4);
     print_motor("rwheel", 5);
     print_link("right", false, 3);
-    std::printf("  state: fsm=%u cmd.len=%.4f cmd.v=%.4f Tw=(%.4f,%.4f) move=%d n_total=%.4f "
+    std::printf("  state: fsm=%u cmd.len=%.4f cmd.x=%.4f cmd.v=%.4f cmd.yaw=%.4f cmd.dyaw=%.4f Tw=(%.4f,%.4f) move=%d n_total=%.4f "
                 "odom=(x=%.4f v=%.4f az=%.4f)\n",
-                static_cast<unsigned>(log.fsm), log.cmd_len, log.cmd_v, log.Twl, log.Twr,
+                static_cast<unsigned>(log.fsm), log.cmd_len, log.cmd_x, log.cmd_v, log.cmd_yaw, log.cmd_dyaw,
+                log.Twl, log.Twr,
                 static_cast<int>(log.cmd_move), log.n_total, log.x, log.v, log.az);
     std::fflush(stdout);
+}
+
+constexpr int k_visualizer_port = 2000;
+
+const char* visualizer_html()
+{
+    return R"HTML(<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WBR observer</title>
+<style>
+:root{color-scheme:dark;--bg:#111418;--panel:#181d23;--grid:#303844;--text:#e7edf5;--muted:#9aa7b7;--a:#5eead4;--b:#fbbf24;--c:#93c5fd;--d:#f472b6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+header{height:44px;display:flex;align-items:center;gap:18px;padding:0 14px;border-bottom:1px solid #27303a;background:#0e1115;position:sticky;top:0;z-index:1}
+h1{font-size:15px;margin:0;font-weight:650}.status{color:var(--muted)}main{display:grid;grid-template-columns:repeat(2,minmax(360px,1fr));gap:10px;padding:10px}
+section{background:var(--panel);border:1px solid #27303a;border-radius:8px;min-width:0}h2{font-size:13px;margin:0;padding:9px 10px;border-bottom:1px solid #27303a;font-weight:650}
+canvas{display:block;width:100%;height:220px}.readout{display:flex;flex-wrap:wrap;gap:8px;padding:8px 10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tag{white-space:nowrap}.a{color:var(--a)}.b{color:var(--b)}.c{color:var(--c)}.d{color:var(--d)}
+@media(max-width:820px){main{grid-template-columns:1fr}canvas{height:190px}}
+</style>
+</head>
+<body>
+<header><h1>WBR observer</h1><div class="status" id="status">connecting...</div><div class="status" id="time"></div></header>
+<main id="grid"></main>
+<script>
+const groups=[
+ {id:'att',title:'Attitude',series:[['pitch','pitch','a'],['l_alpha','l alpha','b'],['r_alpha','r alpha','c'],['gyro_p','gyro p','d']]},
+ {id:'cmd',title:'Command / Odom',series:[['cmd_x','cmd x','a'],['x','odom x','b'],['cmd_v','cmd v','c'],['v','odom v','d']]},
+ {id:'torque',title:'Wheel Torque',series:[['Twl','Twl','a'],['Twr','Twr','b'],['cmd_tau2','cmd lwheel','c'],['cmd_tau5','cmd rwheel','d']]},
+ {id:'leg',title:'Leg Geometry',series:[['l_phi','l phi','a'],['r_phi','r phi','b'],['l_len','l len','c'],['r_len','r len','d']]},
+ {id:'contact',title:'Contact / Vertical',series:[['l_n','left n','a'],['r_n','right n','b'],['n_total','n total','c'],['az','az','d']]},
+ {id:'motor',title:'Actual Motor Torque',series:[['m_tau0','lj1','a'],['m_tau1','lj4','b'],['m_tau3','rj1','c'],['m_tau4','rj4','d']]}
+];
+const css=getComputedStyle(document.documentElement);const colors={a:css.getPropertyValue('--a'),b:css.getPropertyValue('--b'),c:css.getPropertyValue('--c'),d:css.getPropertyValue('--d')};
+const N=420, data=[];const grid=document.getElementById('grid');
+for(const g of groups){const s=document.createElement('section');s.innerHTML=`<h2>${g.title}</h2><canvas id="${g.id}"></canvas><div class="readout" id="${g.id}r"></div>`;grid.appendChild(s);g.canvas=s.querySelector('canvas');g.ctx=g.canvas.getContext('2d');}
+function resize(c){const r=c.getBoundingClientRect(),d=devicePixelRatio||1;c.width=Math.max(1,r.width*d);c.height=Math.max(1,r.height*d);}
+function val(o,k){return Number(o[k]??0)}
+function draw(g){const c=g.canvas,ctx=g.ctx;resize(c);const w=c.width,h=c.height,p=28;ctx.clearRect(0,0,w,h);ctx.strokeStyle='#303844';ctx.lineWidth=1;for(let i=0;i<5;i++){let y=p+(h-2*p)*i/4;ctx.beginPath();ctx.moveTo(p,y);ctx.lineTo(w-8,y);ctx.stroke();}
+ let vals=[];for(const [k] of g.series){for(const d of data)vals.push(val(d,k));}let mn=Math.min(...vals,0),mx=Math.max(...vals,0);if(!isFinite(mn)||mx-mn<1e-6){mn=-1;mx=1}const pad=(mx-mn)*.08;mn-=pad;mx+=pad;
+ ctx.fillStyle='#9aa7b7';ctx.font=`${11*(devicePixelRatio||1)}px system-ui`;ctx.fillText(mx.toFixed(2),4,p);ctx.fillText(mn.toFixed(2),4,h-p);
+ for(const [k,label,cl] of g.series){ctx.strokeStyle=colors[cl];ctx.lineWidth=2*(devicePixelRatio||1);ctx.beginPath();data.forEach((d,i)=>{const x=p+(w-p-8)*i/Math.max(1,N-1);const y=h-p-(val(d,k)-mn)*(h-2*p)/(mx-mn);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();}
+ document.getElementById(g.id+'r').innerHTML=g.series.map(([k,l,cl])=>`<span class="tag ${cl}">${l}: ${val(data.at(-1)||{},k).toFixed(4)}</span>`).join('');
+}
+function redraw(){for(const g of groups)draw(g)}
+const es=new EventSource('/events');es.onopen=()=>status.textContent='live on :2000';es.onerror=()=>status.textContent='disconnected';
+es.onmessage=e=>{const o=JSON.parse(e.data);data.push(o);while(data.length>N)data.shift();time.textContent=`t=${Number(o.time||0).toFixed(3)} fsm=${o.fsm} move=${o.cmd_move}`;redraw();}
+addEventListener('resize',redraw);
+</script>
+</body>
+</html>)HTML";
+}
+
+std::string log_to_json(const control::msg_log_t& log)
+{
+    char buf[4096];
+    std::snprintf(buf, sizeof(buf),
+                  "{\"time\":%.6f,\"roll\":%.6f,\"pitch\":%.6f,\"yaw\":%.6f,"
+                  "\"gyro_p\":%.6f,\"accel0\":%.6f,\"accel2\":%.6f,"
+                  "\"x\":%.6f,\"v\":%.6f,\"az\":%.6f,"
+                  "\"l_len\":%.6f,\"l_dlen\":%.6f,\"l_alpha\":%.6f,\"l_dalpha\":%.6f,\"l_phi\":%.6f,\"l_dphi\":%.6f,\"l_n\":%.6f,"
+                  "\"r_len\":%.6f,\"r_dlen\":%.6f,\"r_alpha\":%.6f,\"r_dalpha\":%.6f,\"r_phi\":%.6f,\"r_dphi\":%.6f,\"r_n\":%.6f,"
+                  "\"n_total\":%.6f,\"Tl0\":%.6f,\"Tl1\":%.6f,\"Tr0\":%.6f,\"Tr1\":%.6f,\"Twl\":%.6f,\"Twr\":%.6f,"
+                  "\"m_tau0\":%.6f,\"m_tau1\":%.6f,\"m_tau2\":%.6f,\"m_tau3\":%.6f,\"m_tau4\":%.6f,\"m_tau5\":%.6f,"
+                  "\"cmd_tau0\":%.6f,\"cmd_tau1\":%.6f,\"cmd_tau2\":%.6f,\"cmd_tau3\":%.6f,\"cmd_tau4\":%.6f,\"cmd_tau5\":%.6f,"
+                  "\"cmd_x\":%.6f,\"cmd_v\":%.6f,\"cmd_len\":%.6f,\"cmd_yaw\":%.6f,\"cmd_dyaw\":%.6f,\"cmd_move\":%d,\"fsm\":%u}",
+                  log.time, log.roll, log.pitch, log.yaw, log.gyro[1], log.accel[0], log.accel[2], log.x, log.v,
+                  log.az, log.l_len, log.l_dlen, log.l_alpha, log.l_dalpha, log.l_phi, log.l_dphi, log.l_n,
+                  log.r_len, log.r_dlen, log.r_alpha, log.r_dalpha, log.r_phi, log.r_dphi, log.r_n, log.n_total,
+                  log.Tl0, log.Tl1, log.Tr0, log.Tr1, log.Twl, log.Twr, log.m_tau[0], log.m_tau[1],
+                  log.m_tau[2], log.m_tau[3], log.m_tau[4], log.m_tau[5], log.cmd_tau[0], log.cmd_tau[1],
+                  log.cmd_tau[2], log.cmd_tau[3], log.cmd_tau[4], log.cmd_tau[5], log.cmd_x, log.cmd_v,
+                  log.cmd_len, log.cmd_yaw, log.cmd_dyaw, log.cmd_move ? 1 : 0, static_cast<unsigned>(log.fsm));
+    return buf;
+}
+
+void set_nonblocking(int fd)
+{
+    const int flags = fcntl(fd, F_GETFL, 0);
+    if (flags >= 0)
+    {
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    }
+}
+
+bool send_text(int fd, const std::string& text)
+{
+    const char* ptr = text.c_str();
+    std::size_t left = text.size();
+    while (left > 0)
+    {
+        const ssize_t sent = send(fd, ptr, left, MSG_NOSIGNAL);
+        if (sent < 0)
+        {
+            return errno == EAGAIN || errno == EWOULDBLOCK;
+        }
+        ptr += sent;
+        left -= static_cast<std::size_t>(sent);
+    }
+    return true;
 }
 
 }  // namespace
@@ -351,8 +465,6 @@ void chassis_service::loop()
         const float vl = raw.motors[2].dq * cfg_.chassis.rwheel * left.wheel_sign();
         const float vr = raw.motors[5].dq * cfg_.chassis.rwheel * right.wheel_sign();
 
-        left.link().solve(pitch, dpitch, 0.0f, raw.motors[0], raw.motors[1]);
-        right.link().solve(pitch, dpitch, 0.0f, raw.motors[3], raw.motors[4]);
         odom.update(ins.quaternion, ins.accel, (vl + vr) * 0.5f, yaw, dt);
         left.link().solve(pitch, dpitch, odom.az, raw.motors[0], raw.motors[1]);
         right.link().solve(pitch, dpitch, odom.az, raw.motors[3], raw.motors[4]);
@@ -432,6 +544,126 @@ void sim_log_service::loop()
         }
         sleep_until_tick(next, cfg_.control_hz);
     }
+}
+
+web_visualizer_service::web_visualizer_service(const app_config& cfg, std::atomic<bool>& running)
+    : cfg_(cfg), running_(running), thread_([this] { loop(); })
+{
+}
+
+web_visualizer_service::~web_visualizer_service()
+{
+    if (thread_.joinable())
+    {
+        thread_.join();
+    }
+}
+
+void web_visualizer_service::loop()
+{
+    (void)cfg_;
+
+    const int server = socket(AF_INET, SOCK_STREAM, 0);
+    if (server < 0)
+    {
+        std::fprintf(stderr, "visualizer: socket failed: %s\n", std::strerror(errno));
+        return;
+    }
+
+    int opt = 1;
+    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(k_visualizer_port);
+
+    if (bind(server, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0 || listen(server, 8) < 0)
+    {
+        std::fprintf(stderr, "visualizer: failed to listen on localhost:%d: %s\n", k_visualizer_port,
+                     std::strerror(errno));
+        close(server);
+        return;
+    }
+    set_nonblocking(server);
+    std::printf("visualizer: http://localhost:%d\n", k_visualizer_port);
+
+    std::vector<int> clients;
+    auto next = std::chrono::steady_clock::now();
+    int publish_divider = 0;
+
+    while (running_.load())
+    {
+        for (;;)
+        {
+            const int client = accept(server, nullptr, nullptr);
+            if (client < 0)
+            {
+                break;
+            }
+
+            set_nonblocking(client);
+            char req[1024] = {};
+            const ssize_t nread = recv(client, req, sizeof(req) - 1, 0);
+            if (nread <= 0)
+            {
+                close(client);
+                continue;
+            }
+            if (std::strncmp(req, "GET /events", 11) == 0)
+            {
+                const std::string header =
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: text/event-stream\r\n"
+                    "Cache-Control: no-cache\r\n"
+                    "Connection: keep-alive\r\n"
+                    "Access-Control-Allow-Origin: *\r\n\r\n";
+                if (send_text(client, header))
+                {
+                    clients.push_back(client);
+                }
+                else
+                {
+                    close(client);
+                }
+            }
+            else
+            {
+                const std::string body = visualizer_html();
+                const std::string header = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
+                                           "Cache-Control: no-cache\r\nContent-Length: " +
+                                           std::to_string(body.size()) + "\r\n\r\n";
+                send_text(client, header + body);
+                close(client);
+            }
+        }
+
+        control::msg_log_t log{};
+        if (msg::read(sub_log_, log) == msg::status::ok && ++publish_divider >= 20)
+        {
+            publish_divider = 0;
+            const std::string event = "data: " + log_to_json(log) + "\n\n";
+            for (auto it = clients.begin(); it != clients.end();)
+            {
+                if (send_text(*it, event))
+                {
+                    ++it;
+                }
+                else
+                {
+                    close(*it);
+                    it = clients.erase(it);
+                }
+            }
+        }
+
+        sleep_until_tick(next, 1000.0f);
+    }
+
+    for (int client : clients)
+    {
+        close(client);
+    }
+    close(server);
 }
 
 }  // namespace controller

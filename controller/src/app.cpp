@@ -10,7 +10,7 @@ namespace controller
 
 controller_app::controller_app(const app_config& cfg)
     : cfg_(cfg), io_(std::make_unique<ecal_io>(cfg)), actuator_(cfg_, *io_, running_), ins_(cfg_, *io_, running_),
-      command_(cfg_, running_), chassis_(cfg_, running_), log_(cfg_, running_)
+      command_(cfg_, running_), chassis_(cfg_, running_), log_(cfg_, running_), visualizer_(cfg_, running_)
 {
     if (!io_->valid())
     {

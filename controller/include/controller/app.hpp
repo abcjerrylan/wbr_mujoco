@@ -28,6 +28,7 @@ private:
     command_service command_;
     chassis_service chassis_;
     sim_log_service log_;
+    web_visualizer_service visualizer_;
 };
 
 }  // namespace controller

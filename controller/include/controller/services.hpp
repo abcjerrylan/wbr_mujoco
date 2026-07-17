@@ -95,4 +95,19 @@ private:
     msg::subscriber sub_log_ = msg::subscribe<control::msg_log_t>();
 };
 
+class web_visualizer_service
+{
+public:
+    web_visualizer_service(const app_config& cfg, std::atomic<bool>& running);
+    ~web_visualizer_service();
+
+private:
+    void loop();
+
+    const app_config& cfg_;
+    std::atomic<bool>& running_;
+    std::thread thread_;
+    msg::subscriber sub_log_ = msg::subscribe<control::msg_log_t>();
+};
+
 }  // namespace controller

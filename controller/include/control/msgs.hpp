@@ -157,7 +157,10 @@ struct msg_log_t
     float n_total = 0.0f;
 
     float cmd_v = 0.0f;
+    float cmd_x = 0.0f;
     float cmd_len = 0.0f;
+    float cmd_yaw = 0.0f;
+    float cmd_dyaw = 0.0f;
     bool cmd_move = false;
 };
 
