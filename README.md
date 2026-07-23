@@ -58,14 +58,14 @@ Use two terminals. Start the simulator first, then the controller.
 Terminal 1 — simulator:
 
 ```bash
-/opt/mujoco_interface/bin/mujoco_interface \
+mujoco_interface \
   -c /absolute/path/to/wbr_mujoco/config/robots/wbr.yaml
 ```
 
 Headless simulator:
 
 ```bash
-/opt/mujoco_interface/bin/mujoco_interface \
+mujoco_interface \
   -c /absolute/path/to/wbr_mujoco/config/robots/wbr.yaml \
   --headless
 ```
